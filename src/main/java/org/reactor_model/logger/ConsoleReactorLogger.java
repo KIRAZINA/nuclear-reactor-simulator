@@ -1,19 +1,32 @@
 package org.reactor_model.logger;
 
+/**
+ * Console-based implementation of ReactorLogger.
+ * Provides timestamped, formatted output for all reactor events.
+ */
 public class ConsoleReactorLogger implements ReactorLogger {
+
     @Override
-    public void logState(double power, double temperature, double coolantFlowRate, double controlRodPosition, double reactivity) {
-        System.out.printf("%s [STATE] Power: %.2f MW, Temp: %.2f C, Coolant: %.2f, Rods: %.2f%%, Reactivity: %.4f%n",
-                getTimestamp(), power, temperature, coolantFlowRate, controlRodPosition, reactivity);
+    public void logState(double power, double temperature, double coolantFlowRate,
+                         double controlRodPosition, double reactivity) {
+
+        System.out.printf(
+                "%s [STATE] Power: %.2f MW | Temp: %.2f C | Coolant: %.2f | Rods: %.2f%% | Reactivity: %.4f%n",
+                getTimestamp(), power, temperature, coolantFlowRate, controlRodPosition, reactivity
+        );
+        System.out.flush();
     }
 
     @Override
     public void logWarning(String message) {
         System.out.printf("%s [WARNING] %s%n", getTimestamp(), message);
+        System.out.flush();
     }
 
     @Override
     public void logDecision(String subsystem, String decision) {
-        System.out.printf("%s [%s] Decision: %s%n", getTimestamp(), subsystem.toUpperCase(), decision);
+        System.out.printf("%s [%s] Decision: %s%n",
+                getTimestamp(), subsystem.toUpperCase(), decision);
+        System.out.flush();
     }
 }

@@ -1,20 +1,37 @@
 package org.reactor_model.logger;
 
-// ReactorLogger.java
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 /**
- * Interface for logging reactor states and events.
- * Ensures all logs are timestamped and human-readable.
+ * Unified logging interface for all reactor subsystems.
+ * Ensures consistent formatting and timestamping.
  */
 public interface ReactorLogger {
-    void logState(double power, double temperature, double coolantFlowRate, double controlRodPosition, double reactivity);
+
+    DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+    /**
+     * Logs the full reactor state snapshot.
+     */
+    void logState(double power, double temperature, double coolantFlowRate,
+                  double controlRodPosition, double reactivity);
+
+    /**
+     * Logs warnings about abnormal or dangerous conditions.
+     */
     void logWarning(String message);
+
+    /**
+     * Logs decisions made by subsystems (regulator, cooling system, etc.).
+     */
     void logDecision(String subsystem, String decision);
 
+    /**
+     * Provides a unified timestamp for all logs.
+     */
     default String getTimestamp() {
-        return LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        return LocalDateTime.now().format(FORMATTER);
     }
 }
 

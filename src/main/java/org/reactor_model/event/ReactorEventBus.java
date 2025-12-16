@@ -3,14 +3,40 @@ package org.reactor_model.event;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Lightweight event bus used to notify subsystems (e.g., AutoRegulator)
+ * whenever the reactor core updates its state.
+ */
 public class ReactorEventBus {
+
     private final List<Runnable> listeners = new ArrayList<>();
 
-    public void subscribe(Runnable listener) {
+    /**
+     * Registers a listener that will be invoked on each publish().
+     */
+    public synchronized void subscribe(Runnable listener) {
         listeners.add(listener);
     }
 
+    /**
+     * Invokes all registered listeners.
+     * One failing listener will not interrupt others.
+     */
     public void publish() {
-        listeners.forEach(Runnable::run);
+        List<Runnable> snapshot;
+
+        // Copy under lock to avoid concurrent modification
+        synchronized (this) {
+            snapshot = new ArrayList<>(listeners);
+        }
+
+        for (Runnable listener : snapshot) {
+            try {
+                listener.run();
+            } catch (Exception e) {
+                // Prevent listener failure from breaking the simulation loop
+                System.err.println("[EventBus] Listener error: " + e.getMessage());
+            }
+        }
     }
 }

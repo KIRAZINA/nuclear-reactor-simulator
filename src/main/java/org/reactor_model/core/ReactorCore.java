@@ -1,4 +1,3 @@
-// src/main/java/org/reactor_model/core/ReactorCore.java
 package org.reactor_model.core;
 
 import org.reactor_model.event.ReactorEventBus;
@@ -16,6 +15,8 @@ public class ReactorCore {
     private int overheatTicks = 0;
 
     public static final double MAX_SAFE_POWER = 8000.0;
+    public static final int OVERHEAT_MAX_TICKS = 100;
+
     private static final double BASE_REACTIVITY = 0.007;
     private static final double HEAT_CAPACITY = 1000.0;
     private static final double HEAT_TRANSFER_COEFF = 12.0;
@@ -25,7 +26,17 @@ public class ReactorCore {
     private static final double CRITICAL_TEMP = 700.0;
     private static final double STARTUP_BOOST = 0.003;
     private static final double OVERHEAT_THRESHOLD = 650.0;
-    public static final int OVERHEAT_MAX_TICKS = 100;
+    private static final double MIN_POWER = 0.01;
+
+    // Stabilization thresholds
+    private static final double REACTIVITY_WARNING_THRESHOLD = 0.01;
+    private static final double REACTIVITY_DAMPING_STEP = 0.001;
+    private static final double POWER_OVERSHOOT_THRESHOLD = 1.02;
+    private static final double POWER_UNDERSHOOT_FACTOR = 0.8;
+
+    // Power jump protection
+    private static final double POWER_JUMP_LIMIT = 2.0;
+    private static final double POWER_JUMP_MIN_ABSOLUTE = 1000.0;
 
     private final ReactorLogger logger;
     public final ReactorEventBus eventBus = new ReactorEventBus();
@@ -45,56 +56,88 @@ public class ReactorCore {
         long now = System.currentTimeMillis();
 
         if (shutdown) {
-            power = 0.0;
-            reactivity = 0.0;
-
-            double coolingPower = coolantFlowRate * HEAT_TRANSFER_COEFF * (temperature - COOLANT_TEMP);
-            temperature += (power - coolingPower) / HEAT_CAPACITY * dt;
-
-            if (now - lastShutdownStateLog >= SHUTDOWN_LOG_INTERVAL) {
-                logger.logState(power, temperature, coolantFlowRate, controlRodPosition, reactivity);
-                logger.logWarning("The reactor is in SCRAM mode. Cooling of the core is ongoing.");
-                lastShutdownStateLog = now;
-            }
-
+            handleShutdownMode(dt, now);
             eventBus.publish();
             return;
         }
 
-        double tempFeedback = TEMP_COEFF * (temperature - COOLANT_TEMP);
-        double rodContribution = ROD_EFFECT * (1 - controlRodPosition);
-        reactivity = BASE_REACTIVITY + tempFeedback + rodContribution;
+        updateReactivity(targetPower);
+        applyStabilizationAroundTarget(targetPower);
 
-        if (power < targetPower && targetPower <= MAX_SAFE_POWER) {
-            double boostFactor = MathUtil.clamp((targetPower - power) / targetPower, 0.0, 1.0);
-            reactivity += STARTUP_BOOST * 2 * boostFactor;
-        }
-
-        if (reactivity < 0 && power > targetPower * 0.8) {
-            reactivity += 0.001;
-        }
-
-        if (power > targetPower * 1.02) {
-            reactivity -= 0.001;
-        }
-
-        double powerChange = previousPower > 0 ? (power - previousPower) / previousPower : 0;
-        if (powerChange > 2.0 && power > 1000.0) {
+        if (detectDangerousPowerJump(previousPower)) {
             emergencyShutdown("A sharp jump in power! Emergency stop.");
             return;
         }
 
+        // Power evolution
         power += reactivity * power * dt;
-        if (power < 0.01) power = 0.01;
+        if (power < MIN_POWER) {
+            power = MIN_POWER;
+        }
+
+        // Thermal evolution
+        double coolingPower = coolantFlowRate * HEAT_TRANSFER_COEFF * (temperature - COOLANT_TEMP);
+        temperature += (power - coolingPower) / HEAT_CAPACITY * dt;
+
+        handleOverheating(now);
+        checkScramCondition();
+        checkHighReactivityWarning(now);
+
+        eventBus.publish();
+    }
+
+    private void handleShutdownMode(double dt, long now) {
+        power = 0.0;
+        reactivity = 0.0;
 
         double coolingPower = coolantFlowRate * HEAT_TRANSFER_COEFF * (temperature - COOLANT_TEMP);
         temperature += (power - coolingPower) / HEAT_CAPACITY * dt;
 
+        if (now - lastShutdownStateLog >= SHUTDOWN_LOG_INTERVAL) {
+            logger.logState(power, temperature, coolantFlowRate, controlRodPosition, reactivity);
+            logger.logWarning("The reactor is in SCRAM mode. Cooling of the core is ongoing.");
+            lastShutdownStateLog = now;
+        }
+    }
+
+    private void updateReactivity(double targetPower) {
+        double tempFeedback = TEMP_COEFF * (temperature - COOLANT_TEMP);
+        double rodContribution = ROD_EFFECT * (1 - controlRodPosition);
+        reactivity = BASE_REACTIVITY + tempFeedback + rodContribution;
+
+        // Startup boost when ramping up towards target
+        if (power < targetPower && targetPower <= MAX_SAFE_POWER) {
+            double boostFactor = MathUtil.clamp((targetPower - power) / targetPower, 0.0, 1.0);
+            reactivity += STARTUP_BOOST * 2 * boostFactor;
+        }
+    }
+
+    private void applyStabilizationAroundTarget(double targetPower) {
+        // If reactivity is negative but we are still below target → soften damping slightly
+        if (reactivity < 0 && power > targetPower * POWER_UNDERSHOOT_FACTOR) {
+            reactivity += REACTIVITY_DAMPING_STEP;
+        }
+
+        // If we overshoot the target → add extra negative reactivity
+        if (power > targetPower * POWER_OVERSHOOT_THRESHOLD) {
+            reactivity -= REACTIVITY_DAMPING_STEP;
+        }
+    }
+
+    private boolean detectDangerousPowerJump(double previousPower) {
+        if (previousPower <= 0) {
+            return false;
+        }
+        double powerChange = (power - previousPower) / previousPower;
+        return powerChange > POWER_JUMP_LIMIT && power > POWER_JUMP_MIN_ABSOLUTE;
+    }
+
+    private void handleOverheating(long now) {
         if (temperature > OVERHEAT_THRESHOLD) {
             overheatTicks++;
             if (overheatTicks > OVERHEAT_MAX_TICKS) {
                 if (now - lastOverheatWarning > WARNING_COOLDOWN_MS) {
-                    logger.logWarning("Prolonged overheating! Automatic target reduction.");
+                    logger.logWarning("Prolonged overheating detected. Protective mechanisms may adjust power targets.");
                     lastOverheatWarning = now;
                 }
                 overheatTicks = 0;
@@ -102,20 +145,20 @@ public class ReactorCore {
         } else {
             overheatTicks = 0;
         }
+    }
 
-        // SCRAM
+    private void checkScramCondition() {
         if (temperature > CRITICAL_TEMP) {
             emergencyShutdown("CRITICAL TEMPERATURE! SCRAM.");
         }
+    }
 
-        if (reactivity > 0.01) {
-            if (now - lastHighReactivityWarning > WARNING_COOLDOWN_MS) {
-                logger.logWarning("High reactivity! Enhanced cooling is recommended.");
-                lastHighReactivityWarning = now;
-            }
+    private void checkHighReactivityWarning(long now) {
+        if (reactivity > REACTIVITY_WARNING_THRESHOLD &&
+                now - lastHighReactivityWarning > WARNING_COOLDOWN_MS) {
+            logger.logWarning("High reactivity detected. Enhanced cooling or control rod insertion is recommended.");
+            lastHighReactivityWarning = now;
         }
-
-        eventBus.publish();
     }
 
     private void emergencyShutdown(String reason) {
@@ -127,8 +170,8 @@ public class ReactorCore {
 
     public void restart() {
         shutdown = false;
-        power = 0.01;
-        temperature = 300.0;
+        power = MIN_POWER;
+        temperature = COOLANT_TEMP;
         overheatTicks = 0;
         lastHighReactivityWarning = 0;
         lastOverheatWarning = 0;
@@ -136,9 +179,17 @@ public class ReactorCore {
         logger.logDecision("System", "Reactor restarted.");
     }
 
-    public boolean isShutdown() { return shutdown; }
-    public int getOverheatTicks() { return overheatTicks; }
-    public void resetOverheatTicks() { overheatTicks = 0; }
+    public boolean isShutdown() {
+        return shutdown;
+    }
+
+    public int getOverheatTicks() {
+        return overheatTicks;
+    }
+
+    public void resetOverheatTicks() {
+        overheatTicks = 0;
+    }
 
     public void logCurrentState() {
         logger.logState(power, temperature, coolantFlowRate, controlRodPosition, reactivity);
@@ -152,10 +203,27 @@ public class ReactorCore {
         this.controlRodPosition = MathUtil.clamp(pos, 0.0, 1.0);
     }
 
-    public double getPower() { return power; }
-    public double getTemperature() { return temperature; }
-    public double getCoolantFlowRate() { return coolantFlowRate; }
-    public double getControlRodPosition() { return controlRodPosition; }
-    public double getReactivity() { return reactivity; }
-    public void addReactivity(double delta) { this.reactivity += delta; }
+    public double getPower() {
+        return power;
+    }
+
+    public double getTemperature() {
+        return temperature;
+    }
+
+    public double getCoolantFlowRate() {
+        return coolantFlowRate;
+    }
+
+    public double getControlRodPosition() {
+        return controlRodPosition;
+    }
+
+    public double getReactivity() {
+        return reactivity;
+    }
+
+    public void addReactivity(double delta) {
+        this.reactivity += delta;
+    }
 }
