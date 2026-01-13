@@ -9,11 +9,11 @@ public class CoolingSystem {
     private final ReactorCore core;
     private final ReactorLogger logger;
 
-    private static final double HIGH_TEMP_THRESHOLD = 520.0;
+    private static final double HIGH_TEMP_THRESHOLD = 620.0;
     private static final double COOLANT_BASE_TEMP = 300.0;
 
-    private static final double MIN_FLOW = 0.5;
-    private static final double FLOW_RANGE = 0.5;
+    private static final double MIN_FLOW = 0.2;
+    private static final double FLOW_RANGE = 0.7;
     private static final double MAX_FLOW = 1.0;
 
     // Rate limiting
@@ -56,12 +56,12 @@ public class CoolingSystem {
     }
 
     private double computeFlow(double temp) {
-        if (temp > HIGH_TEMP_THRESHOLD) {
-            return MAX_FLOW;
+        if (temp <= COOLANT_BASE_TEMP) {
+            return MIN_FLOW;
         }
 
         double normalized = (temp - COOLANT_BASE_TEMP) / (HIGH_TEMP_THRESHOLD - COOLANT_BASE_TEMP);
-        double flow = MIN_FLOW + normalized * FLOW_RANGE;
+        double flow = MIN_FLOW + (normalized * normalized) * (MAX_FLOW - MIN_FLOW);
 
         return MathUtil.clamp(flow, 0.0, MAX_FLOW);
     }

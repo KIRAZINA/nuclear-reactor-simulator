@@ -18,25 +18,25 @@ public class ReactorCore {
     public static final int OVERHEAT_MAX_TICKS = 100;
 
     private static final double BASE_REACTIVITY = 0.007;
-    private static final double HEAT_CAPACITY = 1000.0;
-    private static final double HEAT_TRANSFER_COEFF = 12.0;
-    private static final double COOLANT_TEMP = 300.0;
-    private static final double TEMP_COEFF = -0.00003;
-    private static final double ROD_EFFECT = -0.015;
-    private static final double CRITICAL_TEMP = 700.0;
+    private static final double HEAT_CAPACITY = 1500.0;
+    private static final double HEAT_TRANSFER_COEFF = 15.0;
+    private static final double COOLANT_TEMP = 290.0;
+    private static final double TEMP_COEFF = -0.00004;
+    private static final double ROD_EFFECT = -0.018;
+    private static final double CRITICAL_TEMP = 750.0;
     private static final double STARTUP_BOOST = 0.003;
-    private static final double OVERHEAT_THRESHOLD = 650.0;
+    private static final double OVERHEAT_THRESHOLD = 680.0;
     private static final double MIN_POWER = 0.01;
 
     // Stabilization thresholds
-    private static final double REACTIVITY_WARNING_THRESHOLD = 0.01;
-    private static final double REACTIVITY_DAMPING_STEP = 0.001;
-    private static final double POWER_OVERSHOOT_THRESHOLD = 1.02;
-    private static final double POWER_UNDERSHOOT_FACTOR = 0.8;
+    private static final double REACTIVITY_WARNING_THRESHOLD = 0.012;
+    private static final double REACTIVITY_DAMPING_STEP = 0.0015;
+    private static final double POWER_OVERSHOOT_THRESHOLD = 1.03;
+    private static final double POWER_UNDERSHOOT_FACTOR = 0.75;
 
     // Power jump protection
-    private static final double POWER_JUMP_LIMIT = 2.0;
-    private static final double POWER_JUMP_MIN_ABSOLUTE = 1000.0;
+    private static final double POWER_JUMP_LIMIT = 1.8;
+    private static final double POWER_JUMP_MIN_ABSOLUTE = 1200.0;
 
     private final ReactorLogger logger;
     public final ReactorEventBus eventBus = new ReactorEventBus();
