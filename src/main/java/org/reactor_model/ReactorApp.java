@@ -110,9 +110,13 @@ public class ReactorApp {
             }
 
             case "restart" -> {
-                core.restart();
-                logger.logDecision("User",
-                        "Reactor restarted after emergency shutdown");
+                if (core.isShutdown()) {
+                    core.restart();
+                    logger.logDecision("User",
+                            "Reactor restarted after emergency shutdown");
+                } else {
+                    System.out.println("Reactor is operating normally. Use 'stop' to halt simulation first.");
+                }
             }
 
             case "help" -> System.out.println(HELP_TEXT);

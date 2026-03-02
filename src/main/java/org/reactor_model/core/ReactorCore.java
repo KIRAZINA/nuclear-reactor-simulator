@@ -105,22 +105,22 @@ public class ReactorCore {
         double rodContribution = ROD_EFFECT * (1 - controlRodPosition);
         reactivity = BASE_REACTIVITY + tempFeedback + rodContribution;
 
-        // Startup boost when ramping up towards target
-        if (power < targetPower && targetPower <= MAX_SAFE_POWER) {
+        // Startup boost when ramping up towards target (only if PID hasn't already accelerated)
+        if (power < targetPower && targetPower <= MAX_SAFE_POWER && reactivity < 0.001) {
             double boostFactor = MathUtil.clamp((targetPower - power) / targetPower, 0.0, 1.0);
-            reactivity += STARTUP_BOOST * 2 * boostFactor;
+            reactivity += STARTUP_BOOST * boostFactor;
         }
     }
 
     private void applyStabilizationAroundTarget(double targetPower) {
-        // If reactivity is negative but we are still below target → soften damping slightly
-        if (reactivity < 0 && power > targetPower * POWER_UNDERSHOOT_FACTOR) {
-            reactivity += REACTIVITY_DAMPING_STEP;
-        }
-
-        // If we overshoot the target → add extra negative reactivity
+        // If we overshoot the target significantly → add extra negative reactivity
         if (power > targetPower * POWER_OVERSHOOT_THRESHOLD) {
             reactivity -= REACTIVITY_DAMPING_STEP;
+        }
+        
+        // If we fall far below target and reactivity is still negative → reduce damping slightly
+        if (reactivity < -0.001 && power < targetPower * POWER_UNDERSHOOT_FACTOR) {
+            reactivity += REACTIVITY_DAMPING_STEP * 0.5;
         }
     }
 
@@ -171,7 +171,10 @@ public class ReactorCore {
     public void restart() {
         shutdown = false;
         power = MIN_POWER;
-        temperature = COOLANT_TEMP;
+        temperature = 300.0;
+        coolantFlowRate = 1.0;
+        controlRodPosition = 0.5;
+        reactivity = 0.0;
         overheatTicks = 0;
         lastHighReactivityWarning = 0;
         lastOverheatWarning = 0;

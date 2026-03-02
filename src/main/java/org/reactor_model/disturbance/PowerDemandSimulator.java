@@ -33,10 +33,16 @@ public class PowerDemandSimulator {
             return;
         }
 
+        // Balance: either increase or decrease target power
         if (random.nextBoolean()) {
             applyReactivitySpike();
         } else {
-            adjustTargetPower();
+            // Randomly decide to increase or decrease target power
+            if (random.nextBoolean()) {
+                adjustTargetPower(true);  // increase
+            } else {
+                adjustTargetPower(false); // decrease
+            }
         }
     }
 
@@ -48,21 +54,32 @@ public class PowerDemandSimulator {
                 String.format("Injected positive reactivity spike: %.4f", delta));
     }
 
-    private void adjustTargetPower() {
+    private void adjustTargetPower(boolean increase) {
         double currentTarget = regulator.getTargetPower();
+        double delta;
 
-        if (currentTarget >= ReactorCore.MAX_SAFE_POWER) {
-            return;
+        if (increase) {
+            if (currentTarget >= ReactorCore.MAX_SAFE_POWER) {
+                return;
+            }
+            delta = random.nextDouble() * MAX_TARGET_INCREASE;
+            double newTarget = currentTarget + delta;
+            newTarget = MathUtil.clamp(newTarget, 0.0, ReactorCore.MAX_SAFE_POWER);
+
+            regulator.setTargetPower(newTarget);
+            logger.logDecision("PowerDemand",
+                    String.format("Increased target power to %.2f MW", newTarget));
+        } else {
+            if (currentTarget <= 100.0) {
+                return;
+            }
+            delta = random.nextDouble() * (MAX_TARGET_INCREASE * 0.5);  // Decrease more carefully
+            double newTarget = currentTarget - delta;
+            newTarget = MathUtil.clamp(newTarget, 100.0, ReactorCore.MAX_SAFE_POWER);
+
+            regulator.setTargetPower(newTarget);
+            logger.logDecision("PowerDemand",
+                    String.format("Decreased target power to %.2f MW", newTarget));
         }
-
-        double increase = random.nextDouble() * MAX_TARGET_INCREASE;
-        double newTarget = currentTarget + increase;
-
-        newTarget = MathUtil.clamp(newTarget, 0.0, ReactorCore.MAX_SAFE_POWER);
-
-        regulator.setTargetPower(newTarget);
-
-        logger.logDecision("PowerDemand",
-                String.format("Adjusted target power to %.2f MW (clamped to safe limits)", newTarget));
     }
 }

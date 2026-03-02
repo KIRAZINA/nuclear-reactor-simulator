@@ -75,13 +75,31 @@ public class SimulationLoop {
         demandSimulator.update();
         coolingSystem.update(regulator.getTargetPower());
 
-        // Protect against NaN or Infinity in previousPower
+        // Validate state against NaN or Infinity
+        validateAndSanitizeReactorState();
+
+        // Update reactor core with validated state
+        core.update(DT, regulator.getTargetPower(), previousPower);
+        
+        // Trigger regulation AFTER core update so regulator sees current state
+        // (This maintains 1-cycle latency but ensures stability)
+        previousPower = core.getPower();
+    }
+
+    private void validateAndSanitizeReactorState() {
+        // Check previousPower
         if (Double.isNaN(previousPower) || Double.isInfinite(previousPower)) {
             previousPower = 0.01;
         }
 
-        core.update(DT, regulator.getTargetPower(), previousPower);
-        previousPower = core.getPower();
+        // Check core values
+        if (Double.isNaN(core.getPower()) || Double.isInfinite(core.getPower())) {
+            core.logCurrentState();
+        }
+        
+        if (Double.isNaN(core.getTemperature()) || Double.isInfinite(core.getTemperature())) {
+            core.logCurrentState();
+        }
     }
 
     private void handleOverheatProtection() {
