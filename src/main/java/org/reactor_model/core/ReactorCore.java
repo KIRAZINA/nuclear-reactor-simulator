@@ -9,22 +9,24 @@ public class ReactorCore {
     private double power = 0.01;
     private double temperature = 300.0;
     private double coolantFlowRate = 1.0;
+    private boolean manualFlowControl = false; // When true, cooling system won't override
     private double controlRodPosition = 0.5;
     private double reactivity = 0.0;
+    private double externalReactivity = 0.0;
     private boolean shutdown = false;
     private int overheatTicks = 0;
 
     public static final double MAX_SAFE_POWER = 8000.0;
     public static final int OVERHEAT_MAX_TICKS = 100;
 
-    private static final double BASE_REACTIVITY = 0.007;
-    private static final double HEAT_CAPACITY = 1500.0;
-    private static final double HEAT_TRANSFER_COEFF = 15.0;
+    private static final double BASE_REACTIVITY = 0.0150;
+    private static final double HEAT_CAPACITY = 2000.0;
+    private static final double HEAT_TRANSFER_COEFF = 26.0;
     private static final double COOLANT_TEMP = 290.0;
     private static final double TEMP_COEFF = -0.00004;
-    private static final double ROD_EFFECT = -0.018;
+    private static final double ROD_EFFECT = -0.026;
     private static final double CRITICAL_TEMP = 750.0;
-    private static final double STARTUP_BOOST = 0.003;
+    private static final double STARTUP_BOOST = 0.0;
     private static final double OVERHEAT_THRESHOLD = 680.0;
     private static final double MIN_POWER = 0.01;
 
@@ -64,15 +66,19 @@ public class ReactorCore {
         updateReactivity(targetPower);
         applyStabilizationAroundTarget(targetPower);
 
+        // Power evolution
+        // Use a blended approach: below 500 MW, treat power as 500 MW for reactivity calculations.
+        // This gives a linear 5-10 MW/s startup boost instead of a boring 10-minute exponential wait.
+        double effectivePower = Math.max(power, 500.0);
+        power += reactivity * effectivePower * dt;
+        
+        if (power < MIN_POWER) {
+            power = MIN_POWER;
+        }
+
         if (detectDangerousPowerJump(previousPower)) {
             emergencyShutdown("A sharp jump in power! Emergency stop.");
             return;
-        }
-
-        // Power evolution
-        power += reactivity * power * dt;
-        if (power < MIN_POWER) {
-            power = MIN_POWER;
         }
 
         // Thermal evolution
@@ -103,13 +109,7 @@ public class ReactorCore {
     private void updateReactivity(double targetPower) {
         double tempFeedback = TEMP_COEFF * (temperature - COOLANT_TEMP);
         double rodContribution = ROD_EFFECT * (1 - controlRodPosition);
-        reactivity = BASE_REACTIVITY + tempFeedback + rodContribution;
-
-        // Startup boost when ramping up towards target (only if PID hasn't already accelerated)
-        if (power < targetPower && targetPower <= MAX_SAFE_POWER && reactivity < 0.001) {
-            double boostFactor = MathUtil.clamp((targetPower - power) / targetPower, 0.0, 1.0);
-            reactivity += STARTUP_BOOST * boostFactor;
-        }
+        reactivity = BASE_REACTIVITY + tempFeedback + rodContribution + externalReactivity;
     }
 
     private void applyStabilizationAroundTarget(double targetPower) {
@@ -175,6 +175,7 @@ public class ReactorCore {
         coolantFlowRate = 1.0;
         controlRodPosition = 0.5;
         reactivity = 0.0;
+        externalReactivity = 0.0;
         overheatTicks = 0;
         lastHighReactivityWarning = 0;
         lastOverheatWarning = 0;
@@ -184,6 +185,11 @@ public class ReactorCore {
 
     public boolean isShutdown() {
         return shutdown;
+    }
+    
+    // Public method for testing
+    public void setShutdown(boolean shutdown) {
+        this.shutdown = shutdown;
     }
 
     public int getOverheatTicks() {
@@ -200,6 +206,14 @@ public class ReactorCore {
 
     public void setCoolantFlowRate(double rate) {
         this.coolantFlowRate = MathUtil.clamp(rate, 0.0, 1.0);
+    }
+    
+    public boolean isManualFlowControl() {
+        return manualFlowControl;
+    }
+    
+    public void setManualFlowControl(boolean manual) {
+        this.manualFlowControl = manual;
     }
 
     public void setControlRodPosition(double pos) {
@@ -227,6 +241,6 @@ public class ReactorCore {
     }
 
     public void addReactivity(double delta) {
-        this.reactivity += delta;
+        this.externalReactivity += delta;
     }
 }

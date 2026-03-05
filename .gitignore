@@ -1,9 +1,21 @@
+### Maven ###
 target/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+### JAR files in root ###
+/*.jar
+
+### Compiled class files ###
+*.class
+
+### Log files ###
+*.log
+logs/
+
 ### IntelliJ IDEA ###
+.idea/
 .idea/modules.xml
 .idea/jarRepositories.xml
 .idea/compiler.xml
@@ -17,7 +29,7 @@ target/
 .classpath
 .factorypath
 .project
-.settings
+.settings/
 .springBeans
 .sts4-cache
 
@@ -34,8 +46,34 @@ build/
 ### VS Code ###
 .vscode/
 
-### Mac OS ###
+### Operating System Files ###
+# macOS
 .DS_Store
-/.idea/
+.AppleDouble
+.LSOverride
 
-.idea/
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msm
+*.msp
+
+# Linux
+*~
+.nfs*
+
+### Temporary files ###
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+### Test output ###
+test-output/
+/surefire-reports/
+"test_output.txt"  

@@ -41,6 +41,7 @@ class CoolingSystemTest {
     @DisplayName("High temperature should increase cooling")
     void testIncreasesCoolingAtHighTemp() {
         // Heat up the core
+        core.setCoolantFlowRate(0.2);
         core.addReactivity(0.02);
         for (int i = 0; i < 30; i++) {
             core.update(0.1, 500.0, core.getPower());
@@ -59,10 +60,10 @@ class CoolingSystemTest {
     @Test
     @DisplayName("Critical overpower should activate maximum cooling")
     void testMaxCoolingAtOverpower() {
-        // Force critical power
-        core.addReactivity(0.1);
-        for (int i = 0; i < 200; i++) {
-            core.update(0.1, 8100.0, core.getPower());
+        // Gently raise power to critical to explicitly bypass jump protection
+        core.addReactivity(0.5);
+        for (int i = 0; i < 1000; i++) {
+            core.update(0.1, 9000.0, core.getPower());
             if (core.getPower() > ReactorCore.MAX_SAFE_POWER) {
                 break;
             }
@@ -77,10 +78,10 @@ class CoolingSystemTest {
     @Test
     @DisplayName("Overpower should add negative reactivity")
     void testOverpowerNegativeReactivity() {
-        // Force overpower
-        core.addReactivity(0.1);
-        for (int i = 0; i < 150; i++) {
-            core.update(0.1, 8100.0, core.getPower());
+        // Gently force overpower
+        core.addReactivity(0.5);
+        for (int i = 0; i < 1000; i++) {
+            core.update(0.1, 9000.0, core.getPower());
             if (core.getPower() > ReactorCore.MAX_SAFE_POWER) {
                 break;
             }
@@ -88,6 +89,8 @@ class CoolingSystemTest {
         
         double reactivityBeforeCooling = core.getReactivity();
         coolingSystem.update(500.0);
+        // Step the core once so the injected reactivity is compiled into total reactivity
+        core.update(0.1, 9000.0, core.getPower());
         double reactivityAfterCooling = core.getReactivity();
         
         assertTrue(reactivityAfterCooling < reactivityBeforeCooling,

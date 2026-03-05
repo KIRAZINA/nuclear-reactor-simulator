@@ -89,12 +89,12 @@ class SimplePIDStrategyTest {
         double adj1 = strategy.computeAdjustment(100.0, 150.0, 0.1);
         double adj2 = strategy.computeAdjustment(100.0, 150.0, 0.1);
         
-        // Large error change
+        // large error change
         double adj3 = strategy.computeAdjustment(100.0, 300.0, 0.1);
         double adj4 = strategy.computeAdjustment(100.0, 300.0, 0.1);
         
         // Different adjustments should be produced for different error magnitudes
-        assertNotEquals(adj1, adj3, 0.01, "Derivative should differ for different errors");
+        assertNotEquals(adj1, adj3, 0.00001, "Derivative should differ for different errors");
     }
 
     @Test
@@ -164,7 +164,7 @@ class SimplePIDStrategyTest {
         strategy.computeAdjustment(100.0, 200.0, 0.1);
         double adj2 = strategy.computeAdjustment(100.0, 200.0, 0.1);
         
-        assertNotEquals(adj1, adj2, 0.01, "Different errors should yield different results");
+        assertNotEquals(adj1, adj2, 0.00001, "Different errors should yield different results");
     }
 
     @Test

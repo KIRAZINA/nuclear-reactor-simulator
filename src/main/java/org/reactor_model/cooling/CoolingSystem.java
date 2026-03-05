@@ -27,6 +27,11 @@ public class CoolingSystem {
     }
 
     public void update(double targetPower) {
+        // Skip automatic cooling update if manual control is active
+        if (core.isManualFlowControl()) {
+            return;
+        }
+        
         double temp = core.getTemperature();
         double power = core.getPower();
         long now = System.currentTimeMillis();

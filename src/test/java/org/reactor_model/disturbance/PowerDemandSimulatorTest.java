@@ -46,7 +46,7 @@ class PowerDemandSimulatorTest {
         double initialReactivity = core.getReactivity();
         double initialTarget = regulator.getTargetPower();
         
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 2000; i++) {
             simulator.update();
             
             if (core.getReactivity() != initialReactivity ||

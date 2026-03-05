@@ -47,15 +47,15 @@ public class AutoRegulator {
         adjustment = MathUtil.clamp(adjustment, -MAX_ROD_STEP, MAX_ROD_STEP);
 
         double oldPos = core.getControlRodPosition();
-        double newPos = oldPos + adjustment;
+        double newPos = MathUtil.clamp(oldPos + adjustment, 0.0, 1.0);
         core.setControlRodPosition(newPos);
 
         long now = System.currentTimeMillis();
 
         // Log rod movement
-        if (Math.abs(adjustment) > 0.0001 && now - lastRodAdjustmentLog > ROD_LOG_COOLDOWN) {
+        if (Math.abs(oldPos - newPos) > 0.0001 && now - lastRodAdjustmentLog > ROD_LOG_COOLDOWN) {
             logger.logDecision("AutoRegulator",
-                    String.format("Rod adjustment: %.4f → new pos %.3f", adjustment, newPos));
+                    String.format("Rod adjustment: %.4f → new pos %.3f", (newPos - oldPos), newPos));
             lastRodAdjustmentLog = now;
         }
 

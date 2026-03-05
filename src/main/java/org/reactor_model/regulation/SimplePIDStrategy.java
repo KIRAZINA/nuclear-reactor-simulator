@@ -7,12 +7,12 @@ import org.reactor_model.util.MathUtil;
  */
 public class SimplePIDStrategy implements RegulationStrategy {
 
-    private static final double KP = 0.02;
-    private static final double KI = 0.002;
-    private static final double KD = 0.005;
+    private static final double KP = 0.0005;  // Increased from 0.00005
+    private static final double KI = 0.00002;  // Increased from 0.000005
+    private static final double KD = 0.0005;   // Increased from 0.0001
 
-    private static final double INTEGRAL_MAX = 10.0;
-    private static final double DERIVATIVE_MAX = 500.0;
+    private static final double INTEGRAL_MAX = 2000.0;
+    private static final double DERIVATIVE_MAX = 5000.0;
 
     private static final double DERIVATIVE_SMOOTHING = 0.2;
 

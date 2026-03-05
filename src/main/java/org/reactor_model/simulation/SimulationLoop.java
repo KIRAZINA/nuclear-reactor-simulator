@@ -48,6 +48,7 @@ public class SimulationLoop {
         running = true;
 
         loopThread = new Thread(this::runLoop, "ReactorSimulationLoop");
+        loopThread.setDaemon(true);
         loopThread.start();
     }
 
