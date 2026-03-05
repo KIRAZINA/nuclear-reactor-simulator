@@ -5,7 +5,7 @@ import org.reactor_model.cooling.CoolingSystem;
 import org.reactor_model.disturbance.PowerDemandSimulator;
 import org.reactor_model.logger.ConsoleReactorLogger;
 import org.reactor_model.regulation.AutoRegulator;
-import org.reactor_model.regulation.SimplePIDStrategy;
+import org.reactor_model.regulation.PrecisionPIDStrategy;
 import org.reactor_model.simulation.SimulationLoop;
 import org.reactor_model.ui.EventLogPanel;
 import org.reactor_model.ui.ReactorDashboard;
@@ -53,12 +53,13 @@ public class ReactorApp {
         // Build simulation components
         UiReactorLogger logger   = new UiReactorLogger();
         ReactorCore     core     = new ReactorCore(logger);
-        AutoRegulator   regulator = new AutoRegulator(core, logger, new SimplePIDStrategy());
+        // Use Precision PID for ±10 MW accuracy
+        AutoRegulator   regulator = new AutoRegulator(core, logger, new PrecisionPIDStrategy());
         PowerDemandSimulator demand = new PowerDemandSimulator(core, regulator, logger);
         CoolingSystem   cooling  = new CoolingSystem(core, logger);
         SimulationLoop  loop     = new SimulationLoop(core, regulator, demand, cooling);
 
-        ReactorUIAdapter adapter  = new ReactorUIAdapter(core, regulator, loop);
+        ReactorUIAdapter adapter  = new ReactorUIAdapter(core, regulator, loop, demand);
         EventLogPanel    eventLog = new EventLogPanel(logger.getQueue());
 
         SwingUtilities.invokeLater(() -> {
@@ -67,6 +68,7 @@ public class ReactorApp {
             dashboard.setVisible(true);
 
             // Auto-start the simulation with auto-regulator enabled
+            // Disturbances are DISABLED by default for stable operation
             regulator.setEnabled(true);
             adapter.startLoop();
         });
@@ -77,7 +79,8 @@ public class ReactorApp {
     private static void runCli() {
         var logger    = new ConsoleReactorLogger();
         var core      = new ReactorCore(logger);
-        var strategy  = new SimplePIDStrategy();
+        // Use Precision PID for ±10 MW accuracy
+        var strategy  = new PrecisionPIDStrategy();
         var regulator = new AutoRegulator(core, logger, strategy);
         var demand    = new PowerDemandSimulator(core, regulator, logger);
         var cooling   = new CoolingSystem(core, logger);

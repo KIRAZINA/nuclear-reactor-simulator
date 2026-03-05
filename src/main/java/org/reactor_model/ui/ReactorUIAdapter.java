@@ -16,15 +16,18 @@ public class ReactorUIAdapter {
     private final ReactorCore core;
     private final AutoRegulator regulator;
     private final SimulationLoop loop;
+    private final PowerDemandSimulator demandSimulator;
 
     private volatile ReactorStateSnapshot snapshot;
 
     public ReactorUIAdapter(ReactorCore core,
                             AutoRegulator regulator,
-                            SimulationLoop loop) {
+                            SimulationLoop loop,
+                            PowerDemandSimulator demandSimulator) {
         this.core      = core;
         this.regulator = regulator;
         this.loop      = loop;
+        this.demandSimulator = demandSimulator;
 
         // Build an initial snapshot so the UI never sees null
         snapshot = buildSnapshot();
@@ -83,12 +86,10 @@ public class ReactorUIAdapter {
     }
 
     public void scram() {
-        // Force an emergency shutdown by raising temperature past critical threshold
-        // We do it by calling the public restart-path in reverse: set shutdown via
-        // injecting a massive reactivity spike that triggers SCRAM organically.
-        // Actually simpler: just set coolant to 0 and add large positive reactivity
-        core.setCoolantFlowRate(0.0);
-        core.addReactivity(0.05);
+        // Emergency SCRAM: fully insert control rods and add large negative reactivity
+        // This immediately stops the fission chain reaction
+        core.setControlRodPosition(0.0);
+        core.addReactivity(-0.5);
     }
 
     public void restart() {
@@ -103,5 +104,38 @@ public class ReactorUIAdapter {
 
     public double getControlRodPosition() {
         return core.getControlRodPosition();
+    }
+
+    // ---- Disturbance simulation control ----
+
+    /**
+     * Enable random disturbance simulation.
+     * This will inject random reactivity spikes and change target power.
+     * Only use for testing regulator response.
+     */
+    public void enableDisturbances() {
+        demandSimulator.enable();
+    }
+
+    /**
+     * Disable random disturbance simulation (default).
+     * Reactor will operate in stable, predictable mode.
+     */
+    public void disableDisturbances() {
+        demandSimulator.disable();
+    }
+
+    /**
+     * Toggle disturbance simulation on/off.
+     */
+    public void toggleDisturbances() {
+        demandSimulator.toggle();
+    }
+
+    /**
+     * Returns whether disturbance simulation is active.
+     */
+    public boolean isDisturbanceEnabled() {
+        return demandSimulator.isEnabled();
     }
 }

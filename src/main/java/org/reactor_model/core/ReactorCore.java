@@ -26,7 +26,6 @@ public class ReactorCore {
     private static final double TEMP_COEFF = -0.00004;
     private static final double ROD_EFFECT = -0.026;
     private static final double CRITICAL_TEMP = 750.0;
-    private static final double STARTUP_BOOST = 0.0;
     private static final double OVERHEAT_THRESHOLD = 680.0;
     private static final double MIN_POWER = 0.01;
 
@@ -66,12 +65,11 @@ public class ReactorCore {
         updateReactivity(targetPower);
         applyStabilizationAroundTarget(targetPower);
 
-        // Power evolution
-        // Use a blended approach: below 500 MW, treat power as 500 MW for reactivity calculations.
-        // This gives a linear 5-10 MW/s startup boost instead of a boring 10-minute exponential wait.
+        // Power evolution based on reactivity
+        // Use effective power for smoother startup: below 500 MW, use 500 MW for calculations
         double effectivePower = Math.max(power, 500.0);
         power += reactivity * effectivePower * dt;
-        
+
         if (power < MIN_POWER) {
             power = MIN_POWER;
         }
@@ -169,6 +167,12 @@ public class ReactorCore {
     }
 
     public void restart() {
+        // Safety check: ensure temperature has cooled down before allowing restart
+        if (shutdown && temperature > OVERHEAT_THRESHOLD) {
+            logger.logWarning("Cannot restart: temperature too high (" + temperature + "K). Wait for cooldown.");
+            return;
+        }
+        
         shutdown = false;
         power = MIN_POWER;
         temperature = 300.0;

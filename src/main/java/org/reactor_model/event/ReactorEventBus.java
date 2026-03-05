@@ -19,6 +19,22 @@ public class ReactorEventBus {
     }
 
     /**
+     * Removes a previously registered listener.
+     * Returns true if the listener was found and removed.
+     */
+    public synchronized boolean unsubscribe(Runnable listener) {
+        return listeners.remove(listener);
+    }
+
+    /**
+     * Returns the number of registered listeners.
+     * Useful for testing and debugging.
+     */
+    public synchronized int getListenerCount() {
+        return listeners.size();
+    }
+
+    /**
      * Invokes all registered listeners.
      * One failing listener will not interrupt others.
      */

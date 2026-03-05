@@ -28,6 +28,7 @@ public class ControlPanel extends JPanel {
 
     // Toggle buttons (initialized in constructor)
     private JToggleButton autoRegBtn;
+    private JToggleButton disturbanceBtn;
 
     // Action buttons (initialized in constructor)
     private JButton restartBtn;
@@ -143,26 +144,38 @@ public class ControlPanel extends JPanel {
     private JPanel createRegulatorPanel() {
         JPanel regPanel = titledPanel("Regulator");
         regPanel.setLayout(new BorderLayout(4, 4));
-        
+
         // Auto-regulator toggle
         autoRegBtn = new JToggleButton("Auto-Regulator: ON", true);
         styleToggle(autoRegBtn, true);
         autoRegBtn.setMinimumSize(new Dimension(0, MIN_COMPONENT_HEIGHT));
         autoRegBtn.setPreferredSize(new Dimension(0, PREFERRED_COMPONENT_HEIGHT));
-        
+
+        // Disturbance simulation toggle (OFF by default)
+        disturbanceBtn = new JToggleButton("Disturbances: OFF", false);
+        styleToggle(disturbanceBtn, false);
+        disturbanceBtn.setMinimumSize(new Dimension(0, MIN_COMPONENT_HEIGHT));
+        disturbanceBtn.setPreferredSize(new Dimension(0, PREFERRED_COMPONENT_HEIGHT));
+        disturbanceBtn.addActionListener(e -> {
+            boolean on = disturbanceBtn.isSelected();
+            adapter.toggleDisturbances();
+            styleToggle(disturbanceBtn, on);
+            disturbanceBtn.setText("Disturbances: " + (on ? "ON ⚠" : "OFF"));
+        });
+
         // Rod slider (vertical)
         rodSlider = new JSlider(JSlider.VERTICAL, 0, 100, 50);
         styleSlider(rodSlider);
         rodSlider.setEnabled(false);
         rodSlider.setMinimumSize(new Dimension(40, 80));
         rodSlider.setPreferredSize(new Dimension(50, 120));
-        
+
         // Rod value label
         rodValueLabel = new JLabel("Rod: 0.50");
         rodValueLabel.setForeground(new Color(160, 170, 200));
         rodValueLabel.setFont(new Font("Inter", Font.PLAIN, 11));
         rodValueLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        
+
         // Rod wrapper
         JPanel rodWrapper = new JPanel(new BorderLayout(4, 4));
         rodWrapper.setOpaque(false);
@@ -170,13 +183,19 @@ public class ControlPanel extends JPanel {
         rodWrapper.add(rodSlider, BorderLayout.CENTER);
         rodWrapper.setMinimumSize(new Dimension(60, 100));
         rodWrapper.setPreferredSize(new Dimension(70, 140));
-        
+
         // Setup listeners
         setupRegulatorListeners();
-        
-        regPanel.add(autoRegBtn, BorderLayout.NORTH);
+
+        // Wrapper for toggle buttons
+        JPanel toggleWrapper = new JPanel(new GridLayout(2, 1, 4, 4));
+        toggleWrapper.setOpaque(false);
+        toggleWrapper.add(autoRegBtn);
+        toggleWrapper.add(disturbanceBtn);
+
+        regPanel.add(toggleWrapper, BorderLayout.NORTH);
         regPanel.add(rodWrapper, BorderLayout.CENTER);
-        
+
         return regPanel;
     }
 

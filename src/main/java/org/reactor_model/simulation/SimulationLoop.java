@@ -88,18 +88,22 @@ public class SimulationLoop {
     }
 
     private void validateAndSanitizeReactorState() {
-        // Check previousPower
+        // Check and fix previousPower
         if (Double.isNaN(previousPower) || Double.isInfinite(previousPower)) {
             previousPower = 0.01;
         }
 
-        // Check core values
+        // Check and fix core power
         if (Double.isNaN(core.getPower()) || Double.isInfinite(core.getPower())) {
             core.logCurrentState();
+            core.restart(); // Reset to safe state
+            previousPower = 0.01;
         }
-        
+
+        // Check and fix core temperature
         if (Double.isNaN(core.getTemperature()) || Double.isInfinite(core.getTemperature())) {
             core.logCurrentState();
+            core.restart(); // Reset to safe state
         }
     }
 

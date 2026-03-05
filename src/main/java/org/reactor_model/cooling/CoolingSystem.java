@@ -16,6 +16,9 @@ public class CoolingSystem {
     private static final double FLOW_RANGE = 0.7;
     private static final double MAX_FLOW = 1.0;
 
+    // Overpower protection threshold (slightly below MAX_SAFE_POWER for early intervention)
+    private static final double OVERPOWER_THRESHOLD = ReactorCore.MAX_SAFE_POWER * 0.95;
+
     // Rate limiting
     private long lastMaxFlowDecision = 0;
     private long lastAggressiveLog = 0;
@@ -38,14 +41,14 @@ public class CoolingSystem {
 
         double flow = computeFlow(temp);
 
-        // Overpower protection
-        if (power > ReactorCore.MAX_SAFE_POWER) {
+        // Overpower protection - activate at lower threshold for early intervention
+        if (power > OVERPOWER_THRESHOLD) {
             flow = MAX_FLOW;
             core.addReactivity(-0.003);
 
             if (now - lastAggressiveLog > DECISION_COOLDOWN_MS) {
                 logger.logDecision("CoolingSystem",
-                        "Aggressive cooling activated due to overpower.");
+                        "Aggressive cooling activated due to overpower (>" + OVERPOWER_THRESHOLD + " MW).");
                 lastAggressiveLog = now;
             }
         }
