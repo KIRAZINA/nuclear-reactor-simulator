@@ -14,31 +14,37 @@ public class AutoRegulator {
 
     private final ReactorCore core;
     private final ReactorLogger logger;
+    private final AntiWindupPID pid;
     private final RegulationStrategy strategy;
 
     private double targetPower = 100.0;
     private boolean enabled = true;
 
-    // Precision control parameters
+    // Control parameters
+    private static final double ROD_SPEED_LIMIT = 0.01; // Max rod movement per second
     private static final double PRECISION_TOLERANCE = 10.0; // ±10 MW
-    private static final double MAX_ROD_STEP_PRECISION = 0.02; // Fine control
-    private static final double MAX_ROD_STEP_NORMAL = 0.05;    // Normal control
 
     private long lastRodAdjustmentLog = 0;
-    private long lastStabilityCheck = 0;
     private long lastPrecisionCheck = 0;
+    private long lastStabilityCheck = 0;
 
     private static final long ROD_LOG_COOLDOWN = 5000L;
-    private static final long STABILITY_LOG_COOLDOWN = 10000L;
     private static final long PRECISION_LOG_COOLDOWN = 3000L;
+    private static final long STABILITY_LOG_COOLDOWN = 10000L;
     private static final double STABILITY_TOLERANCE = 0.02; // ±2%
-
     private static final double DT = 0.1;
+
+    public AutoRegulator(ReactorCore core, ReactorLogger logger) {
+        this(core, logger, null);
+    }
 
     public AutoRegulator(ReactorCore core, ReactorLogger logger, RegulationStrategy strategy) {
         this.core = core;
         this.logger = logger;
         this.strategy = strategy;
+
+        // Initialize PID with anti-windup (used when no external strategy is supplied)
+        this.pid = new AntiWindupPID(0.001, 0.0001, 0.0005, 1000.0, ROD_SPEED_LIMIT);
 
         core.eventBus.subscribe(this::regulate);
     }
@@ -52,11 +58,16 @@ public class AutoRegulator {
         double error = targetPower - currentPower;
         boolean inPrecisionRange = Math.abs(error) <= PRECISION_TOLERANCE;
 
-        // Use finer rod movements when in precision range
-        double maxRodStep = inPrecisionRange ? MAX_ROD_STEP_PRECISION : MAX_ROD_STEP_NORMAL;
+        // Compute adjustment via optional strategy or internal PID
+        double adjustment;
+        if (strategy != null) {
+            adjustment = strategy.computeAdjustment(currentPower, targetPower, DT);
+        } else {
+            adjustment = pid.compute(error, DT);
+        }
 
-        double adjustment = strategy.computeAdjustment(currentPower, targetPower, DT);
-        adjustment = MathUtil.clamp(adjustment, -maxRodStep, maxRodStep);
+        // Apply rate limiting for realistic rod speed
+        adjustment = MathUtil.clamp(adjustment, -ROD_SPEED_LIMIT, ROD_SPEED_LIMIT);
 
         double oldPos = core.getControlRodPosition();
         double newPos = MathUtil.clamp(oldPos + adjustment, 0.0, 1.0);
@@ -64,17 +75,17 @@ public class AutoRegulator {
 
         long now = System.currentTimeMillis();
 
-        // Log rod movement
-        if (Math.abs(oldPos - newPos) > 0.0001 && now - lastRodAdjustmentLog > ROD_LOG_COOLDOWN) {
+        // Log significant rod movement
+        if (Math.abs(oldPos - newPos) > 0.001 && now - lastRodAdjustmentLog > ROD_LOG_COOLDOWN) {
             logger.logDecision("AutoRegulator",
-                    String.format("Rod adjustment: %+.5f → new pos %.3f", (newPos - oldPos), newPos));
+                    String.format("Rod adjustment: %+.4f → pos %.3f", (newPos - oldPos), newPos));
             lastRodAdjustmentLog = now;
         }
 
         // Precision mode logging
         if (inPrecisionRange && now - lastPrecisionCheck > PRECISION_LOG_COOLDOWN) {
             logger.logDecision("AutoRegulator",
-                    String.format("PRECISION MODE: Power %.1f MW (target %.1f MW, error %+.1f MW)",
+                    String.format("PRECISION: Power %.1f MW (target %.1f MW, error %+.1f MW)",
                             currentPower, targetPower, error));
             lastPrecisionCheck = now;
         }
@@ -84,12 +95,10 @@ public class AutoRegulator {
                 now - lastStabilityCheck > STABILITY_LOG_COOLDOWN) {
 
             double errorPercent = Math.abs(error) / targetPower * 100.0;
-            double errorAbs = Math.abs(error);
+            String precisionStatus = Math.abs(error) <= PRECISION_TOLERANCE ? "✓ PRECISION" : "⚠ STABLE";
 
-            String precisionStatus = errorAbs <= PRECISION_TOLERANCE ? "✓ PRECISION" : "⚠ STABLE";
-            
             logger.logDecision("AutoRegulator",
-                    String.format("%s: Power stabilized at %.2f MW (error: %+.2f MW / %.2f%%)",
+                    String.format("%s: Power %.2f MW (error: %+.2f MW / %.2f%%)",
                             precisionStatus, currentPower, error, errorPercent));
 
             lastStabilityCheck = now;
@@ -100,10 +109,14 @@ public class AutoRegulator {
         double oldTarget = this.targetPower;
         this.targetPower = target;
         
-        // Reset PID state on significant target change
-        if (strategy instanceof PrecisionPIDStrategy && 
-            Math.abs(target - oldTarget) > 100.0) {
-            ((PrecisionPIDStrategy) strategy).reset();
+        // Reset controller state on significant target change
+        if (Math.abs(target - oldTarget) > 100.0) {
+            pid.reset();
+            if (strategy instanceof SimplePIDStrategy) {
+                ((SimplePIDStrategy) strategy).reset();
+            } else if (strategy instanceof PrecisionPIDStrategy) {
+                ((PrecisionPIDStrategy) strategy).reset();
+            }
         }
     }
 

@@ -53,8 +53,7 @@ public class ReactorApp {
         // Build simulation components
         UiReactorLogger logger   = new UiReactorLogger();
         ReactorCore     core     = new ReactorCore(logger);
-        // Use Precision PID for ±10 MW accuracy
-        AutoRegulator   regulator = new AutoRegulator(core, logger, new PrecisionPIDStrategy());
+        AutoRegulator   regulator = new AutoRegulator(core, logger);
         PowerDemandSimulator demand = new PowerDemandSimulator(core, regulator, logger);
         CoolingSystem   cooling  = new CoolingSystem(core, logger);
         SimulationLoop  loop     = new SimulationLoop(core, regulator, demand, cooling);
@@ -79,9 +78,7 @@ public class ReactorApp {
     private static void runCli() {
         var logger    = new ConsoleReactorLogger();
         var core      = new ReactorCore(logger);
-        // Use Precision PID for ±10 MW accuracy
-        var strategy  = new PrecisionPIDStrategy();
-        var regulator = new AutoRegulator(core, logger, strategy);
+        var regulator = new AutoRegulator(core, logger);
         var demand    = new PowerDemandSimulator(core, regulator, logger);
         var cooling   = new CoolingSystem(core, logger);
         var loop      = new SimulationLoop(core, regulator, demand, cooling);

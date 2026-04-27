@@ -23,7 +23,6 @@ public class SimulationLoop {
     private static final int LOG_INTERVAL_TICKS = 15;
 
     private int tick = 0;
-    private double previousPower = 0.01;
 
     public SimulationLoop(ReactorCore core,
                           AutoRegulator regulator,
@@ -73,38 +72,23 @@ public class SimulationLoop {
     }
 
     private void updateSubsystems() {
+        // Improved coupling order for numerical stability:
+        // 1. External disturbances (PowerDemandSimulator)
         demandSimulator.update();
+
+        // 2. Calculate reactivity feedbacks (core internal)
+        // (Reactivity calculation now happens inside core.update())
+
+        // 3. Advance neutronics and thermal-hydraulics (core)
+        core.update(DT);
+
+        // 4. Update cooling system based on current state
         coolingSystem.update(regulator.getTargetPower());
 
-        // Validate state against NaN or Infinity
-        validateAndSanitizeReactorState();
+        // 5. Run control system (regulator) - now sees updated state
+        // Regulator runs via event bus subscription
 
-        // Update reactor core with validated state
-        core.update(DT, regulator.getTargetPower(), previousPower);
-        
-        // Trigger regulation AFTER core update so regulator sees current state
-        // (This maintains 1-cycle latency but ensures stability)
-        previousPower = core.getPower();
-    }
-
-    private void validateAndSanitizeReactorState() {
-        // Check and fix previousPower
-        if (Double.isNaN(previousPower) || Double.isInfinite(previousPower)) {
-            previousPower = 0.01;
-        }
-
-        // Check and fix core power
-        if (Double.isNaN(core.getPower()) || Double.isInfinite(core.getPower())) {
-            core.logCurrentState();
-            core.restart(); // Reset to safe state
-            previousPower = 0.01;
-        }
-
-        // Check and fix core temperature
-        if (Double.isNaN(core.getTemperature()) || Double.isInfinite(core.getTemperature())) {
-            core.logCurrentState();
-            core.restart(); // Reset to safe state
-        }
+        // 6. Apply automatic protections (already done in core.update())
     }
 
     private void handleOverheatProtection() {

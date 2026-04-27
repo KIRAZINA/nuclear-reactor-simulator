@@ -74,7 +74,7 @@ class ReactorCoreTest {
         }
         
         assertTrue(core.isShutdown(), "Reactor should trigger SCRAM at critical temperature");
-        verify(mockLogger, atLeastOnce()).logWarning(contains("CRITICAL TEMPERATURE"));
+        verify(mockLogger, atLeastOnce()).logWarning(contains("EMERGENCY SHUTDOWN"));
     }
 
     @Test

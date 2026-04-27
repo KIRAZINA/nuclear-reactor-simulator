@@ -36,8 +36,8 @@ public class ReactorDashboard extends JFrame {
     
     // Responsive sizing constants
     private static final int MIN_WINDOW_WIDTH = 900;
-    private static final int MIN_WINDOW_HEIGHT = 600;
-    private static final int RIGHT_PANEL_MIN_WIDTH = 280;
+    private static final int MIN_WINDOW_HEIGHT = 700;
+    private static final int RIGHT_PANEL_MIN_WIDTH = 260;
     private static final int RIGHT_PANEL_MAX_WIDTH = 380;
     private static final int RIGHT_PANEL_PREFERRED_WIDTH = 320;
     private static final int SCHEMATIC_MIN_WIDTH = 400;
@@ -49,7 +49,8 @@ public class ReactorDashboard extends JFrame {
     private final ControlPanel          controls;
     private final EventLogPanel         eventLog;
     
-    // Scroll pane for responsive behavior
+    // Split pane + scroll pane for responsive behavior
+    private JSplitPane contentSplitPane;
     private JScrollPane mainScrollPane;
     private JPanel rightPanel;
 
@@ -95,6 +96,7 @@ public class ReactorDashboard extends JFrame {
 
         pack();
         setMinimumSize(new Dimension(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT));
+        setPreferredSize(new Dimension(980, 760));
         setLocationRelativeTo(null);
     }
 
@@ -116,24 +118,41 @@ public class ReactorDashboard extends JFrame {
         // Schematic panel with minimum size constraints
         schematic.setBorder(BorderFactory.createLineBorder(new Color(40, 50, 80)));
         schematic.setMinimumSize(new Dimension(SCHEMATIC_MIN_WIDTH, 300));
-        contentPanel.add(schematic, BorderLayout.CENTER);
 
         // Right panel with gauges and controls
         rightPanel = buildRightPanel();
-        contentPanel.add(rightPanel, BorderLayout.EAST);
-        
-        // Wrap content in a scroll pane for horizontal scrolling when needed
-        mainScrollPane = new JScrollPane(contentPanel);
+
+        // Wrap the right panel in its own scroll pane so its controls are reachable on short windows
+        JScrollPane rightPanelScroll = new JScrollPane(rightPanel);
+        rightPanelScroll.setBorder(null);
+        rightPanelScroll.setBackground(BG_FRAME);
+        rightPanelScroll.getViewport().setBackground(BG_FRAME);
+        rightPanelScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        rightPanelScroll.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        rightPanelScroll.getVerticalScrollBar().setUnitIncrement(20);
+        rightPanelScroll.setMinimumSize(new Dimension(RIGHT_PANEL_MIN_WIDTH, 0));
+        rightPanelScroll.setPreferredSize(new Dimension(RIGHT_PANEL_PREFERRED_WIDTH, 0));
+
+        // Use a split pane so the right panel can move below the schematic on narrow windows
+        contentSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, schematic, rightPanelScroll);
+        contentSplitPane.setResizeWeight(0.7);
+        contentSplitPane.setContinuousLayout(true);
+        contentSplitPane.setOneTouchExpandable(true);
+        contentSplitPane.setBorder(null);
+        contentSplitPane.setMinimumSize(new Dimension(0, 0));
+
+        // Wrap split pane in a scroll pane for very small windows
+        mainScrollPane = new JScrollPane(contentSplitPane);
         mainScrollPane.setBorder(null);
         mainScrollPane.setBackground(BG_FRAME);
         mainScrollPane.getViewport().setBackground(BG_FRAME);
         mainScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-        mainScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_NEVER);
-        
-        // Hide scroll bar thumb until needed (custom UI)
+        mainScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
         mainScrollPane.getHorizontalScrollBar().setUnitIncrement(20);
         mainScrollPane.getHorizontalScrollBar().setBlockIncrement(100);
-        
+        mainScrollPane.getVerticalScrollBar().setUnitIncrement(20);
+        mainScrollPane.getVerticalScrollBar().setBlockIncrement(100);
+
         root.add(mainScrollPane, BorderLayout.CENTER);
 
         // Event log with flexible sizing
@@ -201,10 +220,11 @@ public class ReactorDashboard extends JFrame {
         gaugesWrapper.setBackground(BG_FRAME);
         gaugesWrapper.add(gaugeGrid, BorderLayout.CENTER);
         gaugesWrapper.add(barRow,    BorderLayout.SOUTH);
-        gaugesWrapper.setMinimumSize(new Dimension(RIGHT_PANEL_MIN_WIDTH - 16, 280));
+        gaugesWrapper.setMinimumSize(new Dimension(RIGHT_PANEL_MIN_WIDTH - 16, 220));
 
         // Controls panel with scroll capability for small heights
         JScrollPane controlsScroll = new JScrollPane(controls);
+        controlsScroll.setMinimumSize(new Dimension(RIGHT_PANEL_MIN_WIDTH - 16, 160));
         controlsScroll.setBorder(BorderFactory.createLineBorder(new Color(40, 50, 80)));
         controlsScroll.setBackground(BG_FRAME);
         controlsScroll.getViewport().setBackground(BG_FRAME);
@@ -240,20 +260,28 @@ public class ReactorDashboard extends JFrame {
         int availableHeight = size.height - 16;
         
         // Calculate optimal right panel width based on available space
-        int optimalRightWidth = Math.max(RIGHT_PANEL_MIN_WIDTH, 
+        int optimalRightWidth = Math.max(RIGHT_PANEL_MIN_WIDTH,
             Math.min(RIGHT_PANEL_MAX_WIDTH, availableWidth / 3));
-        
-        // Adjust schematic minimum width based on available space
-        int minSchematicWidth = Math.max(SCHEMATIC_MIN_WIDTH, availableWidth - RIGHT_PANEL_MAX_WIDTH - 50);
+
+        // Adjust schematic width and right panel width based on available space
+        int minSchematicWidth = Math.max(SCHEMATIC_MIN_WIDTH, Math.min(availableWidth - optimalRightWidth - 50, SCHEMATIC_MIN_WIDTH));
         schematic.setMinimumSize(new Dimension(minSchematicWidth, 300));
-        
-        // If window is too narrow, ensure horizontal scrolling is enabled
-        int totalMinWidth = SCHEMATIC_MIN_WIDTH + RIGHT_PANEL_MIN_WIDTH + 50;
-        if (availableWidth < totalMinWidth) {
-            mainScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_ALWAYS);
+        rightPanel.setPreferredSize(new Dimension(optimalRightWidth, 0));
+
+        // Switch to vertical split on narrow windows so the right panel remains visible
+        if (availableWidth < 980) {
+            contentSplitPane.setOrientation(JSplitPane.VERTICAL_SPLIT);
+            contentSplitPane.setDividerLocation(Math.max(280, availableHeight / 2));
+            contentSplitPane.setResizeWeight(0.5);
         } else {
-            mainScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+            contentSplitPane.setOrientation(JSplitPane.HORIZONTAL_SPLIT);
+            contentSplitPane.setDividerLocation(Math.max(minSchematicWidth, availableWidth * 2 / 3));
+            contentSplitPane.setResizeWeight(0.7);
         }
+
+        // Keep both scroll bars available for small windows
+        mainScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        mainScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
         
         // Adjust event log height for small windows
         if (availableHeight < 500) {

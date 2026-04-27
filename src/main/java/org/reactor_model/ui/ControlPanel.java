@@ -78,8 +78,8 @@ public class ControlPanel extends JPanel {
         add(actPanel, gbc);
         
         // Set minimum size for the entire panel
-        setMinimumSize(new Dimension(260, 400));
-        setPreferredSize(new Dimension(300, 500));
+        setMinimumSize(new Dimension(220, 320));
+        setPreferredSize(new Dimension(280, 460));
     }
     
     // ---- Panel creation methods ———————————————————————

@@ -76,4 +76,7 @@ $RECYCLE.BIN/
 ### Test output ###
 test-output/
 /surefire-reports/
-"test_output.txt"  
+test_output.txt
+
+### Local notes ###
+analysis.md
