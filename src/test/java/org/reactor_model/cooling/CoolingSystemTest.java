@@ -44,7 +44,7 @@ class CoolingSystemTest {
         core.setCoolantFlowRate(0.2);
         core.addReactivity(0.02);
         for (int i = 0; i < 30; i++) {
-            core.update(0.1, 500.0, core.getPower());
+            core.update(0.1);
         }
         
         double tempBeforeCooling = core.getTemperature();
@@ -63,7 +63,7 @@ class CoolingSystemTest {
         // Gently raise power to critical to explicitly bypass jump protection
         core.addReactivity(0.5);
         for (int i = 0; i < 1000; i++) {
-            core.update(0.1, 9000.0, core.getPower());
+            core.update(0.1);
             if (core.getPower() > ReactorCore.MAX_SAFE_POWER) {
                 break;
             }
@@ -81,7 +81,7 @@ class CoolingSystemTest {
         // Gently force overpower
         core.addReactivity(0.5);
         for (int i = 0; i < 1000; i++) {
-            core.update(0.1, 9000.0, core.getPower());
+            core.update(0.1);
             if (core.getPower() > ReactorCore.MAX_SAFE_POWER) {
                 break;
             }
@@ -90,7 +90,7 @@ class CoolingSystemTest {
         double reactivityBeforeCooling = core.getReactivity();
         coolingSystem.update(500.0);
         // Step the core once so the injected reactivity is compiled into total reactivity
-        core.update(0.1, 9000.0, core.getPower());
+        core.update(0.1);
         double reactivityAfterCooling = core.getReactivity();
         
         assertTrue(reactivityAfterCooling < reactivityBeforeCooling,
@@ -123,7 +123,7 @@ class CoolingSystemTest {
         core.addReactivity(0.02);
         
         for (int i = 0; i < 50; i++) {
-            core.update(0.1, 500.0, core.getPower());
+            core.update(0.1);
             coolingSystem.update(500.0);
             
             assertFalse(Double.isNaN(core.getCoolantFlowRate()));
@@ -144,7 +144,7 @@ class CoolingSystemTest {
         // Heat scenario 1 moderately
         core1.addReactivity(0.01);
         for (int i = 0; i < 10; i++) {
-            core1.update(0.1, 500.0, core1.getPower());
+            core1.update(0.1);
         }
         cooling1.update(500.0);
         double flow1 = core1.getCoolantFlowRate();
@@ -152,7 +152,7 @@ class CoolingSystemTest {
         // Heat scenario 2 heavily
         core2.addReactivity(0.03);
         for (int i = 0; i < 20; i++) {
-            core2.update(0.1, 500.0, core2.getPower());
+            core2.update(0.1);
         }
         cooling2.update(500.0);
         double flow2 = core2.getCoolantFlowRate();
@@ -164,7 +164,7 @@ class CoolingSystemTest {
     @DisplayName("Cooling system should react to temperature changes within same update")
     void testImmediateCoolingResponse() {
         core.addReactivity(0.02);
-        core.update(0.1, 500.0, core.getPower());
+        core.update(0.1);
         
         double tempBefore = core.getTemperature();
         double flowBefore = core.getCoolantFlowRate();
@@ -195,7 +195,7 @@ class CoolingSystemTest {
             
             for (int i = 0; i < scenario * 10; i++) {
                 testCore.addReactivity(0.01);
-                testCore.update(0.1, 500.0, testCore.getPower());
+                testCore.update(0.1);
             }
             testCooling.update(500.0);
             flows[scenario] = testCore.getCoolantFlowRate();

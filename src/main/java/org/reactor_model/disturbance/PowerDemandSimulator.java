@@ -76,7 +76,7 @@ public class PowerDemandSimulator {
             }
             delta = random.nextDouble() * MAX_TARGET_INCREASE;
             double newTarget = currentTarget + delta;
-            newTarget = MathUtil.clamp(newTarget, 0.0, ReactorCore.MAX_SAFE_POWER);
+            newTarget = MathUtil.clamp(newTarget, 100.0, ReactorCore.MAX_SAFE_POWER);
 
             regulator.setTargetPower(newTarget);
             logger.logDecision("PowerDemand",

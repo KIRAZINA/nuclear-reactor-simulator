@@ -91,6 +91,8 @@ public class ControlPanel extends JPanel {
         JButton startBtn = actionButton("▶  Start", new Color(0, 160, 80));
         JButton stopBtn  = actionButton("⏹  Stop",  new Color(100, 100, 120));
         
+        startBtn.setName("btnStart");
+        stopBtn.setName("btnStop");
         startBtn.addActionListener(e -> adapter.startLoop());
         stopBtn .addActionListener(e -> adapter.stopLoop());
         
@@ -119,6 +121,7 @@ public class ControlPanel extends JPanel {
         // Spinner
         SpinnerNumberModel spinModel = new SpinnerNumberModel(100, 100, 8000, 50);
         powerSpinner = new JSpinner(spinModel);
+        powerSpinner.setName("spinnerTargetPower");
         styleSpinner(powerSpinner);
         powerSpinner.setMinimumSize(new Dimension(80, MIN_COMPONENT_HEIGHT));
         powerSpinner.setPreferredSize(new Dimension(100, PREFERRED_COMPONENT_HEIGHT));
@@ -128,6 +131,7 @@ public class ControlPanel extends JPanel {
         
         // Slider
         powerSlider = new JSlider(100, 8000, 100);
+        powerSlider.setName("sliderTargetPower");
         styleSlider(powerSlider);
         powerSlider.setMinimumSize(new Dimension(150, MIN_COMPONENT_HEIGHT));
         g.gridx = 0; g.gridy = 1;
@@ -147,12 +151,14 @@ public class ControlPanel extends JPanel {
 
         // Auto-regulator toggle
         autoRegBtn = new JToggleButton("Auto-Regulator: ON", true);
+        autoRegBtn.setName("tglAutoReg");
         styleToggle(autoRegBtn, true);
         autoRegBtn.setMinimumSize(new Dimension(0, MIN_COMPONENT_HEIGHT));
         autoRegBtn.setPreferredSize(new Dimension(0, PREFERRED_COMPONENT_HEIGHT));
 
         // Disturbance simulation toggle (OFF by default)
         disturbanceBtn = new JToggleButton("Disturbances: OFF", false);
+        disturbanceBtn.setName("tglDisturbances");
         styleToggle(disturbanceBtn, false);
         disturbanceBtn.setMinimumSize(new Dimension(0, MIN_COMPONENT_HEIGHT));
         disturbanceBtn.setPreferredSize(new Dimension(0, PREFERRED_COMPONENT_HEIGHT));
@@ -165,6 +171,7 @@ public class ControlPanel extends JPanel {
 
         // Rod slider (vertical)
         rodSlider = new JSlider(JSlider.VERTICAL, 0, 100, 50);
+        rodSlider.setName("sliderRod");
         styleSlider(rodSlider);
         rodSlider.setEnabled(false);
         rodSlider.setMinimumSize(new Dimension(40, 80));
@@ -207,10 +214,13 @@ public class ControlPanel extends JPanel {
         JButton failBtn  = actionButton("💧  Simulate Coolant Failure",  new Color(160, 60,  20));
         JButton scramBtn = actionButton("🛑  EMERGENCY SCRAM",           new Color(200, 20,  20));
         restartBtn       = actionButton("↺  Restart Reactor",            new Color(0, 80, 160));
+        restartBtn.setName("btnRestart");
         restartBtn.setEnabled(false);
 
+        spikeBtn.setName("btnSpike");
         spikeBtn.addActionListener(e -> adapter.injectSpike());
 
+        failBtn.setName("btnFailure");
         failBtn.addActionListener(e -> {
             int r = JOptionPane.showConfirmDialog(this,
                     "Simulate catastrophic coolant pump failure?\nThis will likely cause SCRAM.",
@@ -219,6 +229,7 @@ public class ControlPanel extends JPanel {
             if (r == JOptionPane.YES_OPTION) adapter.simulateCoolantFailure();
         });
 
+        scramBtn.setName("btnScram");
         scramBtn.addActionListener(e -> {
             int r = JOptionPane.showConfirmDialog(this,
                     "Initiate Emergency SCRAM?\nReactor will shut down immediately.",

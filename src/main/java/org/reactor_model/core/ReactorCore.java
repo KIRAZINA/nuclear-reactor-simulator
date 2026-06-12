@@ -19,6 +19,7 @@ public class ReactorCore {
     private double externalReactivity = 0.0; // $
     private boolean shutdown = false;
     private int overheatTicks = 0;
+    private double fuelTemperature = 450.0; // K (core + FUEL_TEMP_OFFSET)
 
     // PWR-like constants (realistic values)
     public static final double MAX_SAFE_POWER = 3411.0; // MWt (PWR nominal)
@@ -26,7 +27,7 @@ public class ReactorCore {
 
     // Reactivity coefficients
     private static final double BASE_REACTIVITY = 0.0; // $ (cold, balanced state)
-    private static final double TEMP_COEFF = -0.00002; // $/K (Doppler + moderator)
+    private static final double TEMP_COEFF = -0.00002; // $/K (moderator temperature coefficient)
     private static final double ROD_WORTH = 0.02; // $ total rod worth
 
     // Thermal-hydraulics
@@ -34,6 +35,7 @@ public class ReactorCore {
     private static final double HEAT_TRANSFER_COEFF = 5e6; // W/K (effective HTC)
     private static final double COOLANT_TEMP = 290.0; // K (inlet temperature)
     private static final double FUEL_TEMP_COEFF = -2e-5; // $/K (Doppler effect)
+    private static final double FUEL_TEMP_OFFSET = 150.0; // K, typical PWR pellet-to-coolant delta
 
     // Safety thresholds
     private static final double CRITICAL_TEMP = 1200.0; // K (fuel melting)
@@ -57,6 +59,7 @@ public class ReactorCore {
     public ReactorCore(ReactorLogger logger) {
         this.logger = logger;
         this.kinetics = new PointKineticsSolver(MIN_POWER);
+        this.fuelTemperature = 300.0 + FUEL_TEMP_OFFSET;
     }
 
     /**
@@ -91,9 +94,11 @@ public class ReactorCore {
     }
 
     private void updateReactivity() {
-        // Base reactivity + temperature feedback + rod effect + external
-        double tempFeedback = TEMP_COEFF * (temperature - COOLANT_TEMP);
-        double fuelFeedback = FUEL_TEMP_COEFF * (temperature - COOLANT_TEMP); // Doppler
+        // Base reactivity + decoupled temperature feedback + rod effect + external
+        double coolantDelta = temperature - COOLANT_TEMP;
+        double fuelDelta = fuelTemperature - COOLANT_TEMP;
+        double tempFeedback = TEMP_COEFF * coolantDelta;       // moderator coefficient
+        double fuelFeedback = FUEL_TEMP_COEFF * fuelDelta;     // Doppler coefficient
         // Control rod effect: partially withdrawn rods add positive reactivity
         double rodEffect = ROD_WORTH * (controlRodPosition - 0.5);
 
@@ -113,6 +118,9 @@ public class ReactorCore {
 
         // Prevent unrealistic temperatures
         temperature = MathUtil.clamp(temperature, 290.0, 1500.0);
+
+        // Coupled fuel temperature (simplified thermal model: fuel hotter than coolant)
+        fuelTemperature = temperature + FUEL_TEMP_OFFSET;
     }
 
     private void handleShutdownMode(double dt, long now) {
@@ -194,17 +202,17 @@ public class ReactorCore {
         this.externalReactivity += delta;
     }
 
-    public void update(double dt, double targetPower, double currentPower) {
-        update(dt);
-    }
-
     public void restart() {
         shutdown = false;
         temperature = 300.0;
+        fuelTemperature = 300.0 + FUEL_TEMP_OFFSET;
         kinetics.setPower(MIN_POWER);
         externalReactivity = 0.0;
         controlRodPosition = 0.5;
         reactivity = 0.0;
+        manualFlowControl = false;
+        coolantFlowRate = 1.0;
+        overheatTicks = 0;
         logger.logDecision("System", "Reactor restarted from cold condition");
     }
 
@@ -214,6 +222,21 @@ public class ReactorCore {
 
     public int getOverheatTicks() {
         return overheatTicks;
+    }
+
+    public double getFuelTemperature() {
+        return fuelTemperature;
+    }
+
+    /**
+     * Emergency override for when the automatic regulator is disabled and
+     * the core is overheating. Directly inserts control rods to reduce power.
+     * Called by SimulationLoop when overheat protection triggers without an active regulator.
+     */
+    public void handleOverheatProtectionManualOverride() {
+        double newPos = Math.max(0.0, controlRodPosition - 0.1);
+        setControlRodPosition(newPos);
+        logger.logWarning("CRITICAL: Regulator disabled — control rods forcibly inserted due to overheating");
     }
 
     public void resetOverheatTicks() {

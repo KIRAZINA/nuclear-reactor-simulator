@@ -64,6 +64,14 @@ public class AntiWindupPID {
         prevOutput = 0.0;
     }
 
+    /**
+     * Scales the integral term proportionally to avoid a discontinuous
+     * "mechanical kick" when the target power changes significantly.
+     */
+    public void scaleIntegral(double ratio) {
+        this.integral *= ratio;
+    }
+
     public double getIntegral() {
         return integral;
     }

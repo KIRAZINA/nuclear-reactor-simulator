@@ -93,8 +93,14 @@ public class SimulationLoop {
 
     private void handleOverheatProtection() {
         if (core.getOverheatTicks() > ReactorCore.OVERHEAT_MAX_TICKS) {
-            double newTarget = regulator.getTargetPower() * 0.8;
-            regulator.setTargetPower(newTarget);
+            if (!regulator.isEnabled()) {
+                // Direct intervention: forcibly insert rods when regulator is disabled
+                core.handleOverheatProtectionManualOverride();
+            } else {
+                // Normal path: reduce target power and let regulator respond
+                double newTarget = regulator.getTargetPower() * 0.8;
+                regulator.setTargetPower(newTarget);
+            }
             core.resetOverheatTicks();
         }
     }

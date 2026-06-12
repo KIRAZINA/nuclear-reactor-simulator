@@ -108,10 +108,11 @@ public class AutoRegulator {
     public void setTargetPower(double target) {
         double oldTarget = this.targetPower;
         this.targetPower = target;
-        
-        // Reset controller state on significant target change
-        if (Math.abs(target - oldTarget) > 100.0) {
-            pid.reset();
+
+        // Scale integral term proportionally to prevent discontinuous mechanical "kick"
+        if (Math.abs(target - oldTarget) > 100.0 && oldTarget > 0) {
+            double ratio = target / oldTarget;
+            pid.scaleIntegral(ratio);
             if (strategy instanceof SimplePIDStrategy) {
                 ((SimplePIDStrategy) strategy).reset();
             } else if (strategy instanceof PrecisionPIDStrategy) {

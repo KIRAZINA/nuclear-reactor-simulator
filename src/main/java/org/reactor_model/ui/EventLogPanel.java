@@ -46,6 +46,7 @@ public class EventLogPanel extends JPanel {
         setMaximumSize(new Dimension(Integer.MAX_VALUE, MAX_HEIGHT));
 
         textPane = new JTextPane();
+        textPane.setName("paneEventLog");
         textPane.setEditable(false);
         textPane.setBackground(BG);
         textPane.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 11));

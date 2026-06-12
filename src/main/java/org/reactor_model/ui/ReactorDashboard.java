@@ -66,6 +66,7 @@ public class ReactorDashboard extends JFrame {
 
     public ReactorDashboard(ReactorUIAdapter adapter, EventLogPanel eventLog) {
         super("Nuclear Reactor Simulator — Dashboard");
+        setName("frameDashboard");
         this.adapter  = adapter;
         this.eventLog = eventLog;
 

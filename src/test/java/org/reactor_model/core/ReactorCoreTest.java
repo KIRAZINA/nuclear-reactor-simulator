@@ -42,7 +42,7 @@ class ReactorCoreTest {
         double initialPower = core.getPower();
         core.addReactivity(0.01);
         
-        core.update(0.1, 1000.0, initialPower);
+        core.update(0.1);
         
         assertTrue(core.getPower() > initialPower, "Power should increase with positive reactivity");
     }
@@ -52,10 +52,10 @@ class ReactorCoreTest {
     void testTemperatureIncrease() {
         double initialTemp = core.getTemperature();
         // Force high power to overcome baseline cooling
-        core.update(0.1, 5000.0, core.getPower());
+        core.update(0.1);
         for (int i = 0; i < 50; i++) {
             core.addReactivity(0.05);
-            core.update(0.1, 5000.0, core.getPower());
+            core.update(0.1);
         }
         
         assertTrue(core.getTemperature() > initialTemp, "Temperature should increase at high power");
@@ -67,7 +67,7 @@ class ReactorCoreTest {
         // Force temperature to critical value by massive overheating
         for (int i = 0; i < 500; i++) {
             core.addReactivity(0.1);
-            core.update(0.1, 8000.0, core.getPower());
+            core.update(0.1);
             if (core.isShutdown()) {
                 break;
             }
@@ -81,7 +81,7 @@ class ReactorCoreTest {
     @DisplayName("Restart should reset to safe state")
     void testRestart() {
         core.addReactivity(0.05);
-        core.update(0.1, 1000.0, core.getPower());
+        core.update(0.1);
         
         core.restart();
         
@@ -116,13 +116,13 @@ class ReactorCoreTest {
     @DisplayName("Increased coolant flow should reduce temperature")
     void testCoolingEffect() {
         core.addReactivity(0.02);
-        core.update(0.1, 500.0, core.getPower());
+        core.update(0.1);
         
         double tempWithNormalFlow = core.getTemperature();
         
         core.setCoolantFlowRate(1.0); // Max cooling
         double previousTemp = core.getTemperature();
-        core.update(0.1, 500.0, core.getPower());
+        core.update(0.1);
         double tempWithMaxCooling = core.getTemperature();
         
         assertTrue(tempWithMaxCooling <= previousTemp, "Increased cooling should prevent temperature rise");
@@ -134,7 +134,7 @@ class ReactorCoreTest {
         // Quickly get power above POWER_JUMP_MIN_ABSOLUTE (1200)
         for (int i = 0; i < 200; i++) {
             core.addReactivity(0.1);
-            core.update(0.1, 8000.0, core.getPower());
+            core.update(0.1);
             if (core.getPower() > 1500.0) break;
         }
         
@@ -142,7 +142,7 @@ class ReactorCoreTest {
         
         // Massive artificial reactivity to cause > 1.8x growth in 1 tick
         core.addReactivity(30.0);
-        core.update(0.1, 8000.0, stableHighPower);
+        core.update(0.1);
         
         assertTrue(core.isShutdown(), "Dangerous power jump should trigger emergency shutdown");
     }
@@ -157,7 +157,7 @@ class ReactorCoreTest {
         core.addReactivity(0.05); // High enough to overcome temp coefficient
         
         for (int i = 0; i < 3000; i++) {
-            core.update(0.1, 7000.0, core.getPower()); 
+            core.update(0.1); 
         }
         
         assertTrue(core.getOverheatTicks() > initialTicks, "Overheat ticks should increment at high temperatures");
@@ -170,8 +170,8 @@ class ReactorCoreTest {
         
         // Heat up the reactor
         core.addReactivity(0.02);
-        core.update(0.1, 1000.0, core.getPower());
-        core.update(0.1, 1000.0, core.getPower());
+        core.update(0.1);
+        core.update(0.1);
         
         double highTempReactivity = core.getReactivity();
         
@@ -188,7 +188,7 @@ class ReactorCoreTest {
     void testVariousTimesteps(double dt) {
         core.addReactivity(0.005);
         
-        assertDoesNotThrow(() -> core.update(dt, 1000.0, core.getPower()));
+        assertDoesNotThrow(() -> core.update(dt));
         assertFalse(Double.isNaN(core.getPower()));
         assertFalse(Double.isNaN(core.getTemperature()));
     }
@@ -199,7 +199,7 @@ class ReactorCoreTest {
         // Heat up first
         core.addReactivity(0.03);
         for (int i = 0; i < 50; i++) {
-            core.update(0.1, 1000.0, core.getPower());
+            core.update(0.1);
         }
         
         double tempBeforeShutdown = core.getTemperature();
@@ -212,11 +212,11 @@ class ReactorCoreTest {
     @Test
     @DisplayName("AddReactivity should change reactivity value")
     void testAddReactivity() {
-        core.update(0.1, 500.0, core.getPower()); // Get baseline
+        core.update(0.1); // Get baseline
         double initial = core.getReactivity();
         
         core.addReactivity(0.01);
-        core.update(0.1, 500.0, core.getPower()); // Step state to integrate external reactivity
+        core.update(0.1); // Step state to integrate external reactivity
         
         // Use a looser tolerance since temp feedback might shift extremely slightly
         assertEquals(initial + 0.01, core.getReactivity(), 0.001);

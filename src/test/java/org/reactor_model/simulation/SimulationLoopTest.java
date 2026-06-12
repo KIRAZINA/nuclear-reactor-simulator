@@ -102,6 +102,7 @@ class SimulationLoopTest {
     @Timeout(5)
     void overheatProtectionReducesTargetPower() throws Exception {
         when(regulator.getTargetPower()).thenReturn(1000.0);
+        when(regulator.isEnabled()).thenReturn(true);
         when(core.getOverheatTicks()).thenReturn(ReactorCore.OVERHEAT_MAX_TICKS + 1, 0, 0, 0);
 
         loop.start();

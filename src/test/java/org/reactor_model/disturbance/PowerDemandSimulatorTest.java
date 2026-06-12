@@ -245,4 +245,38 @@ class PowerDemandSimulatorTest {
             assertFalse(Double.isInfinite(core.getReactivity()));
         }
     }
+
+    @Test
+    @DisplayName("Disturbances should clamp target power to valid bounds (100-8000 MW)")
+    void testSymmetricClampingBounds() {
+        simulator.enable();
+
+        // Set regulator to edge values
+        regulator.setTargetPower(120.0);
+
+        for (int i = 0; i < 1000; i++) {
+            simulator.update();
+            double target = regulator.getTargetPower();
+            assertTrue(target >= 100.0,
+                    "Target power should never drop below 100 MW, was: " + target);
+            assertTrue(target <= ReactorCore.MAX_SAFE_POWER,
+                    "Target power should never exceed MAX_SAFE_POWER, was: " + target);
+        }
+    }
+
+    @Test
+    @DisplayName("Both increase and decrease paths should enforce minimum 100 MW")
+    void testBothPathsEnforceMinimum() {
+        simulator.enable();
+
+        // Force target low
+        regulator.setTargetPower(101.0);
+
+        // Run many iterations — any decrease must stay above 100 MW
+        for (int i = 0; i < 500; i++) {
+            simulator.update();
+            assertTrue(regulator.getTargetPower() >= 100.0,
+                    "Both increase and decrease paths must respect minimum 100 MW clamping");
+        }
+    }
 }

@@ -14,7 +14,7 @@ The project is built as a small control-system sandbox: you can run it as a desk
 - Safety logic for overheating and SCRAM conditions
 - Swing dashboard with live gauges, controls, and event log
 - CLI mode for manual simulation commands
-- JUnit 5 and Mockito test suite covering unit, integration, regression, and command behavior
+- JUnit 5, Mockito, and AssertJ-Swing test suite covering unit, integration, regression, UI, and command behavior
 
 ## Project Structure
 
@@ -31,12 +31,14 @@ src/main/java/org/reactor_model/
 └── util/          Shared utilities
 
 src/test/java/org/reactor_model/
-├── core/          Reactor core tests
+├── core/          Reactor core, kinetics stability, safety & restart tests
 ├── cooling/       Cooling tests
 ├── disturbance/   Disturbance tests
 ├── event/         Event bus tests
 ├── regression/    Stability and regression scenarios
+├── regulation/    Auto-regulator unit and transition tests
 ├── simulation/    Simulation loop tests
+├── ui/            AssertJ-Swing dashboard UI tests
 └── ReactorAppCommandTest.java
 ```
 
@@ -59,7 +61,7 @@ mvn test
 
 Current test status:
 
-- 92 tests
+- **116 tests** across unit, integration, regression, UI, and CLI command layers
 - 0 failures
 
 ## Run the Application
@@ -93,13 +95,13 @@ java -cp target/classes org.reactor_model.ReactorApp --cli
 | `increasepower X` | Increase target power by `X` MW |
 | `decreasepower X` | Decrease target power by `X` MW |
 | `toggleauto` | Toggle the automatic regulator |
-| `demand` | Inject a reactivity spike |
+| `spike` | Inject a reactivity spike |
 | `failure` | Simulate coolant failure |
 | `restart` | Restart the reactor after shutdown |
 | `help` | Show available commands |
 | `quit` | Exit the application |
 
-## Architecture Notes
+## Architecture
 
 The main runtime flow is:
 
@@ -114,19 +116,22 @@ The main runtime flow is:
 
 The test suite currently covers:
 
-- reactor core safety and restart behavior
-- regulator enable/disable logic
+- reactor core physics, safety, and restart behavior
+- point-kinetics solver numerical stability
+- regulator enable/disable and PID transition logic
 - simulation loop orchestration
 - disturbance defaults and toggling
 - cooling behavior and manual override
-- CLI command handling
+- CLI command handling (start, stop, spike, failure, restart, etc.)
 - integration between core, regulator, cooling, and UI snapshot updates
+- **UI component interaction via AssertJ-Swing** (button clicks, spinner values, gauge updates, modal dialogs)
 
 ## Notes for Contributors
 
 - The default application mode is the Swing dashboard.
 - Disturbances are disabled by default for stable operation.
 - The repository currently targets plain Maven + Java without extra runtime plugins.
+- UI tests use AssertJ-Swing 3.17.1 with the AWT robot; modal dialogs require a background-thread click pattern (see `ReactorDashboardUiTest.testScramButton`).
 - Keep documentation and public-facing text in English.
 
 ## License

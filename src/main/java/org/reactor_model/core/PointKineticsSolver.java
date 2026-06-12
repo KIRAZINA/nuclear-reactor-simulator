@@ -27,30 +27,36 @@ public class PointKineticsSolver {
         double subDt = dt / SUBSTEPS;
 
         for (int step = 0; step < SUBSTEPS; step++) {
-            double rho = reactivity;
+            // Delayed neutron source (explicit, using current precursors)
             double delayedSource = 0.0;
             for (int i = 0; i < 6; i++) {
                 delayedSource += LAMBDA[i] * precursors[i];
             }
 
-            double powerDerivative = ((rho - BETA_TOTAL) / PROMPT_LIFETIME) * power + delayedSource;
-
-            double[] precursorDerivatives = new double[6];
-            for (int i = 0; i < 6; i++) {
-                precursorDerivatives[i] = (BETA[i] / PROMPT_LIFETIME) * power - LAMBDA[i] * precursors[i];
+            // Implicit Euler for power: P_new = (P_old + dt * delayedSource) / (1 - dt * (rho - beta) / Lambda)
+            double coeff = (reactivity - BETA_TOTAL) / PROMPT_LIFETIME;
+            double denominator = 1.0 - coeff * subDt;
+            // Safeguard denominator against zero or negative (extreme transients)
+            if (denominator <= 0.0) {
+                denominator = 1e-10;
             }
+            double powerNew = (power + subDt * delayedSource) / denominator;
 
-            double powerNew = power + powerDerivative * subDt;
+            // Rate limiter safeguard
             double maxChange = power * MAX_POWER_CHANGE;
             if (Math.abs(powerNew - power) > maxChange) {
                 powerNew = power + Math.signum(powerNew - power) * maxChange;
             }
+            powerNew = Math.max(powerNew, 1e-10);
 
+            // Semi-implicit Euler for precursors (implicit in precursor decay)
             for (int i = 0; i < 6; i++) {
-                precursors[i] += precursorDerivatives[i] * subDt;
+                double lambdaDt = LAMBDA[i] * subDt;
+                double source = (BETA[i] / PROMPT_LIFETIME) * powerNew;
+                precursors[i] = (precursors[i] + source * subDt) / (1.0 + lambdaDt);
             }
 
-            power = Math.max(powerNew, 1e-10);
+            power = powerNew;
         }
 
         return power;
@@ -61,10 +67,13 @@ public class PointKineticsSolver {
     }
 
     public void setPower(double power) {
-        this.power = Math.max(power, 1e-10);
+        double newPower = Math.max(power, 1e-10);
+        // Scale precursors proportionally to maintain physical continuity
+        double ratio = newPower / Math.max(this.power, 1e-10);
         for (int i = 0; i < 6; i++) {
-            precursors[i] = (BETA[i] / (LAMBDA[i] * PROMPT_LIFETIME)) * this.power;
+            precursors[i] *= ratio;
         }
+        this.power = newPower;
     }
 
     public void scram() {
@@ -72,5 +81,9 @@ public class PointKineticsSolver {
         for (int i = 0; i < 6; i++) {
             precursors[i] *= 0.1;
         }
+    }
+
+    public double[] getPrecursors() {
+        return precursors.clone();
     }
 }
