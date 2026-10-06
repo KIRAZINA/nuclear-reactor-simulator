@@ -50,8 +50,10 @@ public class ReactorEventBus {
             try {
                 listener.run();
             } catch (Exception e) {
-                // Prevent listener failure from breaking the simulation loop
+                // Exception isolation: one failing listener (e.g. AutoRegulator)
+                // must not prevent others (e.g. ReactorUIAdapter) from running.
                 System.err.println("[EventBus] Listener error: " + e.getMessage());
+                e.printStackTrace(System.err);
             }
         }
     }

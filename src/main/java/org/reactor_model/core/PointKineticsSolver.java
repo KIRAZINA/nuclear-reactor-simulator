@@ -15,6 +15,9 @@ public class PointKineticsSolver {
     private final double[] precursors = new double[6];
     private static final int SUBSTEPS = 10;
     private static final double MAX_POWER_CHANGE = 10.0;
+    // Hard physical ceiling (MWt): bounds prompt-burst numerical overshoot so
+    // downstream systems (decay-heat seed, ATWS power display) stay finite.
+    private static final double MAX_POWER = 1e7;
 
     public PointKineticsSolver(double initialPower) {
         this.power = initialPower;
@@ -59,6 +62,7 @@ public class PointKineticsSolver {
             power = powerNew;
         }
 
+        power = Math.min(power, MAX_POWER);
         return power;
     }
 
@@ -85,5 +89,19 @@ public class PointKineticsSolver {
 
     public double[] getPrecursors() {
         return precursors.clone();
+    }
+
+    /**
+     * Restores the delayed-neutron precursor concentrations (e.g. from a saved state).
+     * Values are clamped to be non-negative for physical validity.
+     */
+    public void setPrecursors(double[] values) {
+        if (values == null || values.length != precursors.length) {
+            throw new IllegalArgumentException(
+                    "Precursor array must have length " + precursors.length);
+        }
+        for (int i = 0; i < precursors.length; i++) {
+            precursors[i] = Math.max(values[i], 0.0);
+        }
     }
 }

@@ -2,6 +2,7 @@ package org.reactor_model.ui;
 
 import org.reactor_model.ui.gauges.BarGauge;
 import org.reactor_model.ui.gauges.CircularGauge;
+import org.reactor_model.util.ConfigManager;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -21,6 +22,7 @@ import java.awt.event.ComponentEvent;
  *   │  Panel (CENTER)    │  (EAST)                 │
  *   ├────────────────────┴─────────────────────────┤
  *   │  EventLogPanel  (SOUTH)                      │
+ *   │  Status bar (fixed 24px, never starved)      │
  *   └──────────────────────────────────────────────┘
  * 
  * Responsive Design Features:
@@ -32,7 +34,11 @@ import java.awt.event.ComponentEvent;
 public class ReactorDashboard extends JFrame {
 
     private static final Color BG_FRAME  = new Color(10, 12, 22);
-    private static final int   REFRESH_MS = 200;
+    private static final Color STATUS_OK = new Color(140, 160, 210);
+    private static final Color STATUS_ERROR = new Color(255, 120, 120);
+
+    /** Live UI refresh period in ms (configurable via {@code simulation.refresh_ms}). */
+    private final int refreshMs;
     
     // Responsive sizing constants
     private static final int MIN_WINDOW_WIDTH = 900;
@@ -52,7 +58,15 @@ public class ReactorDashboard extends JFrame {
     // Split pane + scroll pane for responsive behavior
     private JSplitPane contentSplitPane;
     private JScrollPane mainScrollPane;
+    private JScrollPane rightPanelScroll;
     private JPanel rightPanel;
+
+    /** Honest right-panel preferred height (gauges + controls); width adapts. */
+    private int rightPanelPrefH;
+
+    // Status bar for non-intrusive feedback (save/load/export, errors)
+    private final JLabel statusBar;
+    private final JPanel statusBarPanel;
 
     // Circular gauges
     private final CircularGauge powerGauge;
@@ -69,6 +83,7 @@ public class ReactorDashboard extends JFrame {
         setName("frameDashboard");
         this.adapter  = adapter;
         this.eventLog = eventLog;
+        this.refreshMs = ConfigManager.getRefreshMs();
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setBackground(BG_FRAME);
@@ -90,6 +105,29 @@ public class ReactorDashboard extends JFrame {
 
         schematic = new ReactorSchematicPanel();
         controls  = new ControlPanel(adapter);
+        controls.setStatusReporter(this::setStatus);
+
+        statusBar = new JLabel("Ready");
+        statusBar.setName("statusBar");
+        statusBar.setFont(new Font("Inter", Font.PLAIN, 11));
+        statusBar.setForeground(STATUS_OK);
+        statusBar.setBackground(new Color(16, 20, 35));
+        statusBar.setOpaque(true);
+        statusBar.setBorder(new EmptyBorder(4, 12, 4, 12));
+        statusBar.setHorizontalAlignment(SwingConstants.LEFT);
+        // Stretch across the full width and never collapse on resize.
+        statusBar.setMinimumSize(new Dimension(0, 22));
+        statusBar.setPreferredSize(new Dimension(0, 24));
+
+        // Fixed-height wrapper: BorderLayout honors SOUTH preferred height, so
+        // the status bar can never be starved by the CENTER scroll pane, and the
+        // panel (not the bare label) absorbs any resize pressure.
+        statusBarPanel = new JPanel(new BorderLayout());
+        statusBarPanel.setName("statusBarPanel");
+        statusBarPanel.setBackground(new Color(16, 20, 35));
+        statusBarPanel.setMinimumSize(new Dimension(0, 22));
+        statusBarPanel.setPreferredSize(new Dimension(0, 24));
+        statusBarPanel.add(statusBar, BorderLayout.CENTER);
 
         buildLayout();
         setupResponsiveBehavior();
@@ -124,15 +162,20 @@ public class ReactorDashboard extends JFrame {
         rightPanel = buildRightPanel();
 
         // Wrap the right panel in its own scroll pane so its controls are reachable on short windows
-        JScrollPane rightPanelScroll = new JScrollPane(rightPanel);
+        rightPanelScroll = new JScrollPane(rightPanel);
         rightPanelScroll.setBorder(null);
         rightPanelScroll.setBackground(BG_FRAME);
         rightPanelScroll.getViewport().setBackground(BG_FRAME);
         rightPanelScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         rightPanelScroll.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
         rightPanelScroll.getVerticalScrollBar().setUnitIncrement(20);
-        rightPanelScroll.setMinimumSize(new Dimension(RIGHT_PANEL_MIN_WIDTH, 0));
-        rightPanelScroll.setPreferredSize(new Dimension(RIGHT_PANEL_PREFERRED_WIDTH, 0));
+        // Strict minimums so the split-pane divider can never hide a side:
+        // below these, scrollbars appear instead of squishing components.
+        rightPanelScroll.setMinimumSize(new Dimension(RIGHT_PANEL_MIN_WIDTH, 200));
+        // Honest preferred height (inherited from the right panel): an explicit
+        // 0 here would suppress the OUTER scroll pane and reintroduce crushing.
+        rightPanelScroll.setPreferredSize(new Dimension(
+                RIGHT_PANEL_PREFERRED_WIDTH, rightPanel.getPreferredSize().height));
 
         // Use a split pane so the right panel can move below the schematic on narrow windows
         contentSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, schematic, rightPanelScroll);
@@ -156,13 +199,36 @@ public class ReactorDashboard extends JFrame {
 
         root.add(mainScrollPane, BorderLayout.CENTER);
 
-        // Event log with flexible sizing
+        // Bottom stack: event log above, status bar pinned to the frame bottom.
+        // BorderLayout stretches the status label full-width so its text
+        // stays readable at any window size.
+        JPanel bottomStack = new JPanel(new BorderLayout(0, 4));
+        bottomStack.setBackground(BG_FRAME);
         eventLog.setMinimumSize(new Dimension(0, EVENT_LOG_MIN_HEIGHT));
         eventLog.setPreferredSize(new Dimension(0, 180));
         eventLog.setMaximumSize(new Dimension(Integer.MAX_VALUE, EVENT_LOG_MAX_HEIGHT));
-        root.add(eventLog, BorderLayout.SOUTH);
+        bottomStack.add(eventLog, BorderLayout.CENTER);
+        bottomStack.add(statusBarPanel, BorderLayout.SOUTH);
+        root.add(bottomStack, BorderLayout.SOUTH);
 
         setContentPane(root);
+    }
+
+    /**
+     * Updates the status bar text and color. Safe to call from any thread;
+     * off-EDT calls are marshalled onto the EDT.
+     *
+     * @param message message to display
+     * @param isError true for error styling (red), false for normal styling
+     */
+    public void setStatus(String message, boolean isError) {
+        if (SwingUtilities.isEventDispatchThread()) {
+            statusBar.setText(message);
+            statusBar.setToolTipText(message);
+            statusBar.setForeground(isError ? STATUS_ERROR : STATUS_OK);
+        } else {
+            SwingUtilities.invokeLater(() -> setStatus(message, isError));
+        }
     }
 
     private JPanel buildTitleBar() {
@@ -189,6 +255,8 @@ public class ReactorDashboard extends JFrame {
         JPanel right = new JPanel(new BorderLayout(6, 6));
         right.setBackground(BG_FRAME);
         right.setMinimumSize(new Dimension(RIGHT_PANEL_MIN_WIDTH, 0));
+        // NOTE: preferred height is fixed honestly at the end of this method;
+        // a 0 preferred height would keep the outer scroll pane from engaging.
         right.setPreferredSize(new Dimension(RIGHT_PANEL_PREFERRED_WIDTH, 0));
         right.setMaximumSize(new Dimension(RIGHT_PANEL_MAX_WIDTH, Integer.MAX_VALUE));
 
@@ -225,7 +293,6 @@ public class ReactorDashboard extends JFrame {
 
         // Controls panel with scroll capability for small heights
         JScrollPane controlsScroll = new JScrollPane(controls);
-        controlsScroll.setMinimumSize(new Dimension(RIGHT_PANEL_MIN_WIDTH - 16, 160));
         controlsScroll.setBorder(BorderFactory.createLineBorder(new Color(40, 50, 80)));
         controlsScroll.setBackground(BG_FRAME);
         controlsScroll.getViewport().setBackground(BG_FRAME);
@@ -236,6 +303,19 @@ public class ReactorDashboard extends JFrame {
 
         right.add(gaugesWrapper, BorderLayout.NORTH);
         right.add(controlsScroll, BorderLayout.CENTER);
+
+        // Honest minimum height: BorderLayout gives NORTH its full preferred
+        // height even when space runs out (driving CENTER negative), so the
+        // panel minimum must cover gauges-preferred + controls-minimum. Below
+        // this height the parent JScrollPane scrolls instead of crushing buttons.
+        // The preferred height is equally honest so the OUTER scroll pane
+        // engages (a 0 preferred height would suppress it entirely).
+        int rightMinH = gaugesWrapper.getPreferredSize().height
+                + controlsScroll.getMinimumSize().height + 12; // gaps + borders
+        int rightPrefH = Math.max(right.getPreferredSize().height, rightMinH);
+        rightPanelPrefH = rightPrefH;
+        right.setMinimumSize(new Dimension(RIGHT_PANEL_MIN_WIDTH, rightMinH));
+        right.setPreferredSize(new Dimension(RIGHT_PANEL_PREFERRED_WIDTH, rightPrefH));
 
         return right;
     }
@@ -264,19 +344,37 @@ public class ReactorDashboard extends JFrame {
         int optimalRightWidth = Math.max(RIGHT_PANEL_MIN_WIDTH,
             Math.min(RIGHT_PANEL_MAX_WIDTH, availableWidth / 3));
 
-        // Adjust schematic width and right panel width based on available space
+        // Adjust schematic width and right panel width based on available space.
+        // Preserve the honest preferred HEIGHT (gauges + controls); resetting it
+        // to 0 would suppress the outer scroll pane and crush the controls.
         int minSchematicWidth = Math.max(SCHEMATIC_MIN_WIDTH, Math.min(availableWidth - optimalRightWidth - 50, SCHEMATIC_MIN_WIDTH));
         schematic.setMinimumSize(new Dimension(minSchematicWidth, 300));
-        rightPanel.setPreferredSize(new Dimension(optimalRightWidth, 0));
+        rightPanel.setPreferredSize(new Dimension(optimalRightWidth, rightPanelPrefH));
 
         // Switch to vertical split on narrow windows so the right panel remains visible
         if (availableWidth < 980) {
             contentSplitPane.setOrientation(JSplitPane.VERTICAL_SPLIT);
-            contentSplitPane.setDividerLocation(Math.max(280, availableHeight / 2));
+            // Respect the schematic's real minimum height so the divider can never
+            // pin the top pane below what its gauges need (was a hardcoded 280).
+            // Also clamp from below so the bottom pane keeps its own minimum and
+            // scrolls instead of collapsing.
+            int topMin = Math.max(schematic.getMinimumSize().height, 0);
+            int bottomMin = Math.max(rightPanelScroll.getMinimumSize().height, 0);
+            int divider = Math.max(topMin, availableHeight / 2);
+            divider = Math.min(divider,
+                    Math.max(topMin, availableHeight - bottomMin
+                            - contentSplitPane.getDividerSize()));
+            contentSplitPane.setDividerLocation(divider);
             contentSplitPane.setResizeWeight(0.5);
         } else {
             contentSplitPane.setOrientation(JSplitPane.HORIZONTAL_SPLIT);
-            contentSplitPane.setDividerLocation(Math.max(minSchematicWidth, availableWidth * 2 / 3));
+            int leftMin = Math.max(schematic.getMinimumSize().width, minSchematicWidth);
+            int rightMin = Math.max(rightPanelScroll.getMinimumSize().width, 0);
+            int divider = Math.max(leftMin, availableWidth * 2 / 3);
+            divider = Math.min(divider,
+                    Math.max(leftMin, availableWidth - rightMin
+                            - contentSplitPane.getDividerSize()));
+            contentSplitPane.setDividerLocation(divider);
             contentSplitPane.setResizeWeight(0.7);
         }
 
@@ -298,7 +396,7 @@ public class ReactorDashboard extends JFrame {
     // ---- Refresh timer —————————————————————————————————
 
     private void startRefreshTimer() {
-        Timer timer = new Timer(REFRESH_MS, e -> refresh());
+        Timer timer = new Timer(refreshMs, e -> refresh());
         timer.setCoalesce(true);
         timer.start();
     }

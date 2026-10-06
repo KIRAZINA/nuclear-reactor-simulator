@@ -14,6 +14,18 @@ public class AntiWindupPID {
     private double integral = 0.0;
     private double prevError = 0.0;
     private double prevOutput = 0.0;
+    private double derivativeFiltered = 0.0;
+
+    // First-order lag on the derivative (sim-seconds). Raw per-tick power
+    // chatter would otherwise be amplified 1/dt into output-sized noise that
+    // fights the P-term and stalls settling; genuine trends still pass within
+    // a few seconds, preserving transient braking.
+    private static final double DERIVATIVE_TIME_CONSTANT = 3.0;
+
+    // Slew-rate limit (rod fraction per second, aligned with the regulator's
+    // ROD_SPEED_LIMIT). Guards against rod jerks on large target steps.
+    // Non-positive disables slew limiting (legacy behavior).
+    private double slewRateLimit = -1.0;
 
     // Anti-windup parameters
     private final double backCalcCoeff = 2.0; // Back-calculation coefficient
@@ -33,8 +45,16 @@ public class AntiWindupPID {
         // Integral term with anti-windup
         double iTerm = ki * integral;
 
-        // Derivative term (with filtering)
-        double dTerm = kd * (error - prevError) / dt;
+        // Derivative term with first-order filtering (see field comment).
+        double dTerm;
+        if (dt > 0.0) {
+            double dRaw = (error - prevError) / dt;
+            double alpha = dt / (DERIVATIVE_TIME_CONSTANT + dt);
+            derivativeFiltered += alpha * (dRaw - derivativeFiltered);
+            dTerm = kd * derivativeFiltered;
+        } else {
+            dTerm = 0.0;
+        }
 
         // Compute output
         double output = pTerm + iTerm + dTerm;
@@ -52,16 +72,38 @@ public class AntiWindupPID {
         integral += error * dt;
         integral = Math.max(-integralMax, Math.min(integralMax, integral));
 
-        prevError = error;
-        prevOutput = clampedOutput;
+        // Slew-rate limit: cap the absolute per-call output so rods glide instead
+        // of jerking when a large error demands a big move. This is a cap on
+        // movement per call (slewRateLimit * dt), NOT a ramp of the output.
+        double slewLimited = clampedOutput;
+        if (slewRateLimit > 0.0 && dt > 0.0) {
+            double maxStep = slewRateLimit * dt;
+            slewLimited = Math.max(-maxStep, Math.min(maxStep, clampedOutput));
+        }
 
-        return clampedOutput;
+        prevError = error;
+        prevOutput = slewLimited;
+
+        return slewLimited;
+    }
+
+    /**
+     * Sets the output slew-rate limit in output units per second.
+     * Non-positive disables slew limiting.
+     */
+    public void setSlewRateLimit(double slewRateLimit) {
+        this.slewRateLimit = slewRateLimit;
+    }
+
+    public double getSlewRateLimit() {
+        return slewRateLimit;
     }
 
     public void reset() {
         integral = 0.0;
         prevError = 0.0;
         prevOutput = 0.0;
+        derivativeFiltered = 0.0;
     }
 
     /**
